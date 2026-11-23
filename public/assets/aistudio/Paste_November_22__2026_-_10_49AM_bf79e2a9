@@ -1,0 +1,1093 @@
+# EIGENH AI NATIVE EHR
+# MASTER IMPLEMENTATION PROMPT — GUIDED DEMO ACADEMY V2
+
+## YOUR MISSION
+
+You are working inside the EXISTING EigenH AI Native EHR application in Google AI Studio.
+
+Act as a senior healthcare product architect, clinical workflow specialist, React/TypeScript engineer, instructional UX designer, and AI interaction engineer.
+
+Your task is to transform the existing application's demonstration experience into something that feels like:
+
+**A highly experienced EHR trainer is sharing their screen, explaining the software, moving their mouse, clicking real buttons, entering information, demonstrating AI automation, and teaching the viewer how each healthcare professional uses the application.**
+
+The audience includes hospital administrators, clinicians, medical assistants, nurses, technical architects, product leaders, and potential EHR customers.
+
+The existing demo experience is not good enough. Do not simply polish the current animation or add more scenario cards.
+
+Rebuild the demonstration EXPERIENCE while preserving the existing application and working clinical functionality.
+
+The new system must teach users exactly how to operate the EHR.
+
+The viewer should understand:
+
+1. Who performs each activity.
+2. Where that person starts in the application.
+3. Which screen and button they use.
+4. What information is required.
+5. Which fields AI can prepare automatically.
+6. Which information still requires human verification.
+7. What happens after Save, Submit, Review or Approve.
+8. How the application updates its patient records.
+9. Which healthcare professional receives the next task.
+10. How the entire clinical journey works from beginning to end.
+
+**The highest-priority outcome: a user who watches one guided workflow should be able to repeat that workflow manually afterward.**
+
+This is not primarily a cinematic video project. It is an interactive, fully narrated, screen-share-style EHR training system.
+
+---
+
+# PART 1 — PRODUCT DIRECTION FROM RAVI AND DHEERAJ
+
+Follow the latest product decisions.
+
+## 1.1 EHR FIRST
+
+Build a patient-centric AI Native EHR.
+
+Do not expand the current work into unrelated Hospital Management System capabilities such as payroll, procurement, building operations, ambulance logistics, or hospital-wide employee administration.
+
+The immediate product focuses on:
+
+- Patient identity and clinical records.
+- Scheduled consultations.
+- Pre-visit patient information.
+- Clinical preparation.
+- Longitudinal patient history.
+- Clinical encounter documentation.
+- AI-assisted documentation.
+- Medication and laboratory workflows.
+- Result review.
+- Follow-up care.
+- Role-based clinical collaboration.
+- Relevant FHIR interoperability.
+
+## 1.2 PRESERVE THE EXISTING APPLICATION
+
+This is critical.
+
+- Inspect the existing repository before changing anything.
+- Preserve the current working screens, routing, navigation and shared state.
+- Preserve the existing EigenH visual identity.
+- Reuse existing clinical domain actions, components and data models.
+- Do not overwrite unrelated modules.
+- Do not create a second disconnected EHR application.
+- Do not delete existing demo scenarios before replacing them successfully.
+- Do not connect live hospital services or modify production systems.
+- Use synthetic patient data only.
+
+If the current application is labeled "AI Native HMS", adjust the prototype's visible product positioning toward "AI Native EHR" where appropriate, without breaking internal identifiers, routes, persistence or existing code references.
+
+## 1.3 CLEAN GOOGLE AI STUDIO DESIGN
+
+Ravi preferred the cleaner Google AI Studio design.
+
+Keep:
+
+- One standard light theme.
+- Professional clinical colors.
+- Minimal visual clutter.
+- Useful charts and tables.
+- Clinically meaningful status indicators.
+- Clear patient information hierarchy.
+- Accessible interactions.
+- Existing EigenH brand tokens.
+
+Do not add unnecessary visual animation to normal clinical workflows.
+
+## 1.4 CLINICIAN-FIRST DESIGN
+
+Make two clinician workspaces central to the product:
+
+**Pre-Consultation Summary**
+
+What does the clinician need to know about this patient before starting the consultation?
+
+**Post-Consultation Summary**
+
+What was documented, proposed, reviewed and approved during the consultation, and what happens next?
+
+Preserve detailed chart access, but reduce unnecessary navigation.
+
+---
+
+# PART 2 — BUILD EIGENH GUIDED DEMO ACADEMY
+
+Create a prominent feature:
+
+# EigenH Guided Demo Academy
+
+Subtitle:
+
+**Learn every clinical workflow by watching the EHR demonstrate itself.**
+
+Provide two entry points:
+
+1. **Watch Complete Patient Journey**
+2. **Explore Workflows by Role**
+
+The experience must resemble a real software trainer conducting a screen-sharing session.
+
+## 2.1 WHAT THE VIEWER SHOULD SEE
+
+When the user clicks Play Demo:
+
+- Open the actual EHR screen.
+- Show a realistic tutorial mouse pointer.
+- Move the pointer to the exact target button or field.
+- Gently highlight that control.
+- Explain what the control does.
+- Perform the actual click.
+- Show the resulting screen change.
+- Explain what happened.
+- If data entry is required, visibly enter the information.
+- Explain what information is being entered and why.
+- Demonstrate Save/Submit and the resulting status.
+- Continue to the next action.
+- Announce the responsible role when it changes.
+
+Every scene should feel like someone is using the EHR in front of us.
+
+### Example
+
+Narration:
+
+"Let's begin in the Front Desk workspace. This screen shows scheduled patients for the selected clinic."
+
+Move the tutorial pointer toward the patient list.
+
+Narration:
+
+"We'll select our scheduled patient, Jordan Rivera."
+
+Visibly click Jordan Rivera.
+
+Wait for the actual patient chart to open.
+
+Narration:
+
+"This patient has already submitted their basic information. Notice that the system marks the outstanding items requiring verification."
+
+Highlight the verification section.
+
+Narration:
+
+"Now we'll confirm the patient information and complete check-in."
+
+Perform the real action.
+
+Show the updated status.
+
+Narration:
+
+"The patient has now been checked in. The next preparation steps belong to the Medical Assistant."
+
+Transition to the Medical Assistant's assigned patient queue.
+
+**That is the required presentation quality.**
+
+Do not merely display:
+
+"Registration complete → Check-in complete → Consultation complete."
+
+We must actually SEE how these operations happen.
+
+---
+
+# PART 3 — VISIBLE MOUSE, CLICKS AND FIELD ENTRY
+
+This is the most important correction from the previous demo.
+
+## 3.1 TUTORIAL CURSOR
+
+Implement a professional tutorial cursor overlay.
+
+It should:
+
+- Move smoothly between real interface elements.
+- Target actual rendered controls, not hardcoded screen coordinates.
+- Remain aligned during responsive layout changes.
+- Be clearly distinguishable from the user's actual mouse pointer.
+- Briefly pause over the target.
+- Show a subtle click indicator.
+- Never obscure the control's label or input value.
+
+Use stable element identifiers or refs for targeting.
+
+Do not depend on fragile global pixel coordinates.
+
+If a target no longer exists, stop the scene and show a useful error rather than pretending to click.
+
+## 3.2 VISIBLE CLICK DEMONSTRATION
+
+For every meaningful click:
+
+1. Identify the control.
+2. Scroll it into view if necessary.
+3. Move the tutorial pointer to it.
+4. Highlight it.
+5. Explain the action.
+6. Perform the actual validated UI/domain action.
+7. Wait for completion.
+8. Show the result.
+9. Advance only after confirming the expected state.
+
+Do not silently jump from screen A to screen B while displaying a fake cursor.
+
+If the application uses React event handlers, route the guided action through the same underlying handler/domain operation used by a real user.
+
+Do not build a parallel fake workflow system.
+
+## 3.3 VISIBLE TYPING
+
+When the workflow requires manual entry, the viewer must SEE it happen.
+
+Example:
+
+First Name: Jordan
+
+Show the cursor selecting First Name.
+
+Explain:
+
+"Here we enter the patient's first name."
+
+Show the value appearing progressively:
+
+J → Jo → Jor → Jord → Jordan
+
+Repeat for the relevant demonstration fields.
+
+Use appropriate pacing. The viewer should be able to follow what happened without watching slow typing for unnecessary periods.
+
+For long text, display enough visible entry to communicate the action and allow skipping ahead.
+
+Always execute real validation and save behavior.
+
+## 3.4 AI AUTOFILL SHOULD BE VISUALLY DIFFERENT
+
+When AI assistance can populate a field:
+
+1. Open the relevant patient or document context.
+2. Show the available source.
+3. Highlight the field AI will populate.
+4. Show the proposed extracted value.
+5. Animate the value appearing in the actual field.
+6. Label it "AI-prepared — review required."
+7. Explain the source and verification requirement.
+8. Demonstrate the appropriate human review/confirmation step.
+
+Example:
+
+"Instead of manually re-entering the medication history, EigenH prepares this information from the patient's submitted record."
+
+Show the source and the proposed field values.
+
+Do not claim a live AI model extracted information when the demo is using a scripted fixture.
+
+Label simulated intelligence clearly.
+
+## 3.5 HUMAN AND AI WORK MUST BE DISTINGUISHABLE
+
+Use consistent, accessible indicators:
+
+- Manual entry
+- AI-prepared
+- Human verification required
+- Human approved
+- Simulated action
+- Completed action
+
+Never imply that a proposal is an authorized clinical order.
+
+---
+
+# PART 4 — PROFESSIONAL TRAINER EXPERIENCE
+
+The narration must sound like a knowledgeable person demonstrating the product.
+
+Not like an advertisement.
+
+Not like an automated status reader.
+
+Not like a technical API log.
+
+## 4.1 NARRATION STRUCTURE
+
+For each meaningful action, explain:
+
+- Where we are.
+- Who is using the application.
+- What we are about to do.
+- Why the action matters.
+- What information is required.
+- What the EHR does automatically.
+- What result we should expect.
+
+Example:
+
+"We are now in the Medical Assistant workspace. Patients who are ready for intake appear in this queue."
+
+"Let's open Jordan Rivera's record."
+
+"The patient completed the pre-visit form earlier. We don't need to ask for the same information again."
+
+"Here we verify medications and allergies. Any uncertain information remains flagged for human review."
+
+"Once the required preparation steps are completed, we hand the patient over to the clinician."
+
+These explanations should accompany the REAL interface.
+
+## 4.2 SPOKEN NARRATION
+
+Provide optional spoken English narration.
+
+Prefer a clear, professional, friendly trainer voice if browser text-to-speech or an existing supported narration service is available.
+
+Synchronize narration with:
+
+- Pointer movement.
+- Highlighting.
+- Field entry.
+- Click actions.
+- State changes.
+- Screen transitions.
+
+Do not start the next narrated step before the current explanation has finished, unless the viewer selects faster playback.
+
+Never put API secrets into frontend code.
+
+If voice synthesis is unavailable, the tutorial must continue through text captions.
+
+## 4.3 CAPTION PANEL
+
+Show a compact tutorial panel containing:
+
+- Current role.
+- Current screen.
+- Current step.
+- Short explanatory text.
+- What happens next.
+
+For example:
+
+Role: Medical Assistant
+
+Step 4 of 8
+
+"Review the patient's current medications and confirm the information received during pre-visit intake."
+
+Next: Verify allergies.
+
+The panel must not obscure the EHR controls being demonstrated.
+
+## 4.4 THREE LEARNING MODES
+
+Build three distinct modes:
+
+### Mode A — Watch Demo
+
+Fully guided, automatically performed synthetic workflow.
+
+The application moves the pointer, enters data, clicks controls and explains every step.
+
+The viewer only watches.
+
+### Mode B — Guided Practice
+
+The tutorial explains what to do, highlights the next control and waits for the user to perform the action.
+
+Provide:
+
+- Helpful hints.
+- Validation feedback.
+- Correct-next-action guidance.
+- Optional "Show Me" for individual steps.
+
+This is how a new staff member can learn to use the EHR.
+
+### Mode C — Executive Demo
+
+A shorter presentation that still shows real clicks and key actions, but skips repeated low-value typing and routine explanations.
+
+Do not turn Executive Demo into a slideshow.
+
+All three modes must use the same underlying clinical operations and scenario data.
+
+---
+
+# PART 5 — DEMO PLAYER CONTROLS
+
+Implement:
+
+- Play
+- Pause
+- Resume
+- Restart
+- Previous step
+- Next step
+- Replay current step
+- Choose chapter
+- Playback speeds: 0.5×, 1×, 1.5×, 2×
+- Narration on/off
+- Captions on/off
+- Watch Demo / Guided Practice / Executive Demo
+- Exit tutorial
+- Reset scenario
+- Show complete journey
+- Play a specific role chapter
+
+Display progress such as:
+
+**Medical Assistant Workflow — Step 4 of 8**
+
+Use a compact floating controller.
+
+Playback must be interruptible.
+
+If the user pauses, pointer movement, field entry and narrated playback should pause safely.
+
+If the user resumes, the scenario should continue from the correct application state.
+
+Rewind and scene seeking must use deterministic checkpoints or safe reconstruction.
+
+Never duplicate clinical records, orders, appointments or results when replaying.
+
+---
+
+# PART 6 — ROLE-BASED DEMO ACADEMY
+
+Build a dedicated page named:
+
+**Explore Workflows by Role**
+
+Create clear tutorial cards for:
+
+1. Front Desk
+2. Patient Pre-Visit Intake
+3. Medical Assistant
+4. Nurse Practitioner / Clinical Support
+5. Clinician / Provider
+6. Laboratory Staff
+7. Care Coordinator
+8. Administrator
+
+Each role card must include:
+
+- Role title.
+- What that person does.
+- Where their work starts.
+- Their main workflow steps.
+- Which actions AI assists with.
+- Which actions require human decisions.
+- What happens when they finish.
+- Play Tutorial.
+- Practice Workflow.
+- Readiness status.
+
+Selecting one role must launch only that role's complete tutorial using a prepared synthetic patient checkpoint.
+
+The viewer must not have to manually complete every previous role first.
+
+Do not create unrelated demo data for every role unless necessary.
+
+Prefer using one consistent patient journey.
+
+## ROLE 1 — FRONT DESK
+
+Teach:
+
+1. Open Front Desk workspace.
+2. Understand the appointment list.
+3. Find scheduled patient.
+4. Open patient record.
+5. Review basic registration details.
+6. Confirm identity through the simulated verification process.
+7. Show assisted demographic entry or review.
+8. Complete check-in.
+9. Confirm waiting/check-in status.
+10. Explain the handoff to Medical Assistant.
+
+Demonstrate all relevant buttons and entries.
+
+## ROLE 2 — PATIENT PRE-VISIT INTAKE
+
+Teach:
+
+1. Open simulated secure intake link.
+2. Verify patient context.
+3. Complete demographic information.
+4. Enter reason for visit.
+5. Provide relevant medical history.
+6. Upload a synthetic prior report.
+7. Show AI-assisted document extraction.
+8. Review extracted information.
+9. Submit the intake.
+10. Show how it reaches the EHR.
+
+This is an intentionally limited tutorial route, not approval to expand the full patient portal product.
+
+## ROLE 3 — MEDICAL ASSISTANT
+
+Teach:
+
+1. Open assigned patient queue.
+2. Select prepared patient.
+3. Understand intake status.
+4. Verify required demographics.
+5. Review insurance eligibility status where applicable.
+6. Enter or confirm vitals.
+7. Review medications and allergies.
+8. Resolve missing information.
+9. Save intake information.
+10. Complete clinical handoff.
+
+Make the distinction between Front Desk and Medical Assistant responsibilities explicit.
+
+## ROLE 4 — NP / CLINICAL SUPPORT
+
+Teach only the tasks legitimately assigned by the configured clinic workflow.
+
+Demonstrate clinical preparation and handoff without inventing universal Nurse Practitioner responsibilities.
+
+## ROLE 5 — CLINICIAN
+
+This must be the strongest tutorial.
+
+Teach:
+
+1. Open clinician dashboard.
+2. Find assigned patient.
+3. Open Pre-Consultation Summary.
+4. Review reason for visit.
+5. Review relevant patient history.
+6. Examine available lab results and trends.
+7. Inspect AI-prepared context and source links.
+8. Start the consultation.
+9. Start simulated ambient Scribe.
+10. Show synthetic consultation content.
+11. Stop Scribe.
+12. Generate SOAP draft.
+13. Explain Subjective, Objective, Assessment and Plan.
+14. Review and edit draft.
+15. Review proposed lab/medication/follow-up actions.
+16. Show explicit clinician approval.
+17. Open Post-Consultation Summary.
+18. Finalize appropriate documentation.
+19. Show authorized downstream handoffs.
+
+The viewer should understand how the system reduces unnecessary doctor effort without bypassing clinical responsibility.
+
+## ROLE 6 — LABORATORY STAFF
+
+Teach:
+
+1. Open Lab Worklist.
+2. Find authorized lab order.
+3. Inspect patient and order details.
+4. Demonstrate specimen collection.
+5. Demonstrate processing.
+6. Enter synthetic result.
+7. Save and complete.
+8. Show clinical results inbox.
+9. Explain clinician acknowledgement.
+
+## ROLE 7 — CARE COORDINATOR
+
+Teach:
+
+1. Open assigned follow-up tasks.
+2. Find the patient's approved plan.
+3. Review follow-up instructions.
+4. Schedule relevant appointment.
+5. Demonstrate simulated reminder scheduling.
+6. Update task status.
+7. Verify patient timeline continuity.
+
+## ROLE 8 — ADMINISTRATOR
+
+Teach:
+
+1. Open permitted administration workspace.
+2. Understand facility context.
+3. Inspect role-based access.
+4. Open synthetic patient export when authorized.
+5. Explain masked FHIR R4 JSON.
+6. Show validation limitations.
+7. Download permitted synthetic export.
+8. Demonstrate that unauthorized users cannot perform the same operation.
+
+---
+
+# PART 7 — COMPLETE SCHEDULED PATIENT JOURNEY
+
+Create one flagship tutorial:
+
+**AI Native EHR — Scheduled Patient Journey**
+
+The application must guide the viewer through:
+
+Booking → Pre-Visit Intake → AI Preparation → Front Desk → Medical Assistant → Clinical Preparation → Pre-Consultation → Ambient Scribe → Post-Consultation → Orders → Laboratory Results → Follow-Up → Patient Timeline.
+
+Every role transition should include an understandable narration.
+
+Example:
+
+"The Front Desk has completed check-in. The next step belongs to the Medical Assistant, so we're switching to that workspace."
+
+Show role switch.
+
+Open the receiving work queue.
+
+Highlight the new patient task.
+
+Continue teaching.
+
+At the end, show a consolidated visual timeline of everything that occurred.
+
+Allow the user to click any role within that timeline and replay its tutorial.
+
+Keep FHIR export available as an optional Administrator chapter if it is not part of the first-priority clinical journey.
+
+### MOST IMPORTANT RULE
+
+The flagship scenario must work from beginning to end with the same synthetic patient, appointment, encounter, order references and follow-up records.
+
+Do not fabricate transitions between disconnected screens.
+
+---
+
+# PART 8 — HIGH-VALUE AI NATIVE FEATURES
+
+Implement these only where they can be meaningfully demonstrated within the existing EHR.
+
+## FEATURE 1 — AI Pre-Visit Readiness Assistant
+
+Prepare patient data before consultation.
+
+Highlight:
+
+- Received information.
+- Missing data.
+- Unverified data.
+- Available external documents.
+- Preparation tasks.
+- Required human reviews.
+
+The tutorial must explain how this reduces repetitive work.
+
+## FEATURE 2 — Intelligent Clinical Context Brief
+
+Provide a concise source-linked summary containing:
+
+- Reason for visit.
+- Relevant history.
+- Medications and allergies.
+- Recent results.
+- Significant previous events.
+- Missing information.
+- Outstanding clinical actions.
+
+Show the doctor how to open source records when needed.
+
+Never invent historical medical facts.
+
+## FEATURE 3 — Ambient Scribe + Structured Notes
+
+Demonstrate:
+
+Synthetic conversation → Draft transcript → Structured SOAP note → Human review → Authorized sign-off.
+
+The tutorial should explain exactly which part AI prepares and which part the clinician verifies.
+
+## FEATURE 4 — Clinical Action Composer
+
+Prepare proposed actions from reviewed clinical context.
+
+Examples:
+
+- Draft laboratory order.
+- Draft medication request.
+- Draft follow-up task.
+- Draft referral.
+- Draft patient instruction.
+
+Show how clinicians review these proposals.
+
+Never silently authorize orders or prescriptions.
+
+## FEATURE 5 — Smart Clinical Handoffs
+
+Automatically route authorized next actions to the correct synthetic work queues.
+
+During tutorials, explicitly open the receiving role's screen and show the work item.
+
+## FEATURE 6 — Clinical Safety Indicators
+
+Demonstrate clinically meaningful warnings using consistent synthetic facts.
+
+Examples:
+
+- Known allergy conflict.
+- Unreviewed abnormal laboratory result.
+- Missing patient verification.
+- Pending clinician acknowledgement.
+
+Use human review and source-linked information.
+
+Do not make autonomous diagnoses.
+
+## FEATURE 7 — Patient Timeline Intelligence
+
+Create a readable longitudinal timeline with:
+
+- Registration/intake events.
+- Consultations.
+- Relevant vital trends.
+- Orders and results.
+- Clinical documentation.
+- Follow-up records.
+- Critical Events filter where records support it.
+
+The tutorial should teach the user how to navigate and interpret this screen.
+
+---
+
+# PART 9 — DEMO ARCHITECTURE
+
+Create a reliable architecture rather than a collection of hardcoded animations.
+
+Suggested modules:
+
+- DemoAcademy
+- ScenarioRegistry
+- ScenarioPlayer
+- TutorialCursor
+- GuidedHighlight
+- VisibleTypingController
+- NarrationController
+- CaptionPanel
+- RoleWorkflowRegistry
+- SceneCheckpointManager
+- DemoDataSandbox
+- DemoActionAdapter
+- ScenarioValidation
+- GuidedPracticeController
+
+Each tutorial step should define:
+
+- Step ID
+- Scenario ID
+- Role
+- Screen/route
+- UI target
+- Explanation before action
+- Action type (click, type, select, scroll, review, wait, navigate)
+- Data to enter, if applicable
+- Information source
+- AI/manual/simulation classification
+- Expected application state
+- Explanation after action
+- Next step
+- Failure recovery behavior
+
+Use a declarative scene format so the same scenario can support Watch Demo, Guided Practice and Executive Demo.
+
+Prefer existing tested domain methods for action execution.
+
+Do not bypass important validation or permissions.
+
+The tutorial cursor is only the presentation layer. The actual application operation must remain authoritative.
+
+## STATE SAFETY
+
+Before demo playback:
+
+- Save or isolate current synthetic app state.
+- Prepare deterministic fictional data.
+- Validate prerequisites.
+- Confirm the scenario can execute.
+- Show an unmistakable Demo Mode indicator.
+
+During playback:
+
+- Keep record identities consistent.
+- Prevent duplicate mutations.
+- Preserve correct clinical state transitions.
+- Respect role/facility scope.
+- Stop when an assertion fails.
+
+After playback:
+
+- Offer Replay, Practice or Exit.
+- Preserve or restore data according to explicit demo controls.
+- Do not corrupt unrelated application records.
+
+When replaying a previous step, restore a checkpoint instead of blindly repeating a save operation.
+
+## CLINICAL APPROVAL SAFETY
+
+Scripted demo approvals must be clearly labeled as fictional demonstrations.
+
+They must not create real clinician signatures or real clinical orders.
+
+In regular application mode, an authorized human must approve clinical actions.
+
+No real patient information, external prescriptions, live diagnostic orders or clinical messages are allowed in synthetic tutorial playback.
+
+---
+
+# PART 10 — DEMO VISUAL AND AUDIO QUALITY
+
+The finished tutorial should resemble a premium software training experience.
+
+Use:
+
+- Clear English narration.
+- Synchronized captions.
+- Smooth cursor movement.
+- Accurate field highlighting.
+- Realistic visible typing.
+- Brief pauses after important actions.
+- Subtle focus/zoom when necessary.
+- Clear role transition explanations.
+- Patient identity continuity.
+- Unobtrusive playback controls.
+
+Avoid:
+
+- Fake prerecorded videos.
+- Slide-style screen swapping.
+- Random animation.
+- Automatic state changes with no visible explanation.
+- Text boxes claiming that a button was clicked.
+- Instant skips that hide what the trainer did.
+- Narration unrelated to the current screen.
+- Cursor movements toward non-existent buttons.
+- Fake success toasts.
+- Unsupported productivity percentages.
+- Excessive decorative AI graphics.
+- Autoplaying unrelated modules.
+
+The EHR itself must remain usable when the tutorial is not active.
+
+---
+
+# PART 11 — REQUIRED TESTING
+
+Do not declare completion after the application merely builds.
+
+Actually verify the behavior.
+
+### Tutorial behavior
+
+Test:
+
+- Click Play.
+- Correct screen opens.
+- Narration matches displayed action.
+- Cursor targets correct visible element.
+- Click invokes the actual application action.
+- Typing produces real validated field values.
+- AI-prepared fields show their source/status.
+- Save updates shared clinical state.
+- Next role receives correct work item.
+- Pause/resume works.
+- Replay works.
+- Speed controls work.
+- Previous/next scene works.
+- Exit restores intended state.
+- Guided Practice waits for user interaction.
+- Mobile and desktop controls remain usable.
+- Keyboard and reduced-motion accessibility are respected.
+
+### Clinical behavior
+
+Test:
+
+- One patient identity throughout.
+- Correct appointment assignment.
+- Correct role/facility scope.
+- Correct pre-visit data.
+- No duplicate encounters.
+- SOAP draft requires review.
+- Clinical approvals are not silently performed in normal mode.
+- Lab result links to correct order.
+- Results review updates the correct record.
+- Follow-up links to the encounter.
+- Timeline displays actual synthetic events.
+- Administrator-only export is enforced.
+
+### Replay reliability
+
+Run the same flagship scenario twice from a clean starting checkpoint.
+
+The second run must not cause:
+
+- Duplicate patients.
+- Duplicate appointments.
+- Duplicate clinical notes.
+- Duplicate orders.
+- Lost state.
+- Broken UI targets.
+- Incorrect role handoffs.
+
+Use real browser interaction tests where the environment supports them.
+
+If browser testing is unavailable, explicitly report which tests could not run.
+
+Do not describe untested interactions as verified.
+
+---
+
+# PART 12 — IMPLEMENTATION PRIORITY
+
+Implement in this order.
+
+## PHASE 1 — INSPECTION AND RECOVERY
+
+Inspect existing code and the previous Demo Scenarios implementation.
+
+Identify reusable functionality and any failures.
+
+Preserve a recoverable checkpoint before editing.
+
+## PHASE 2 — NEW TUTORIAL FOUNDATION
+
+Build:
+
+- Demo Academy home.
+- Role workflow library.
+- Tutorial cursor.
+- Visible click/typing controller.
+- Narration and captions.
+- Pause/resume.
+- Step navigation.
+- Reliable demo state checkpoints.
+
+## PHASE 3 — COMPLETE FRONT DESK TUTORIAL
+
+Implement and verify the Front Desk tutorial as the first reference example.
+
+It must show every real action clearly.
+
+Do not build eight superficial tutorial shells before one is fully operational.
+
+## PHASE 4 — COMPLETE CLINICAL JOURNEY
+
+Implement the Scheduled Patient Journey with all essential role handoffs.
+
+Prioritize Pre-/Post-Consultation and ambient Scribe.
+
+## PHASE 5 — ROLE-SPECIFIC TRAINING
+
+Derive the independent role tutorials from the validated complete journey.
+
+## PHASE 6 — GUIDED PRACTICE AND EXECUTIVE MODE
+
+Add interactive learning and shorter presentations without duplicating workflow logic.
+
+## PHASE 7 — REMAINING AI CAPABILITIES
+
+Extend document intelligence, clinical safety, source explanations and future tutorials only after the core journey is stable.
+
+Do not spend the entire development run generating architectural documentation without implementing the working tutorial.
+
+---
+
+# PART 13 — FINAL OUTPUT REQUIRED
+
+After implementation, report:
+
+1. Existing application functionality preserved.
+2. Files changed.
+3. Demo Academy entry point.
+4. Scenario inventory.
+5. Working role tutorials.
+6. Steps demonstrated for each role.
+7. Whether narration works or captions-only fallback is used.
+8. Whether visible typing and actual clicks work.
+9. Application state changes verified.
+10. Automated tests executed and their results.
+11. Browser screenshots.
+12. Known bugs and incomplete scenarios.
+13. Replay/reset behavior.
+14. Exact instructions for presenting the demo to Ravi and Dheeraj.
+
+Use these readiness labels:
+
+- Verified working
+- Implemented but not fully verified
+- Failed / needs correction
+- Planned / not implemented
+
+Never mark a tutorial Ready if its core actions have not actually been tested.
+
+---
+
+# FINAL ACCEPTANCE TEST — THE PRESENTATION STANDARD
+
+Imagine Ravi and Dheeraj are attending a live product review.
+
+The presenter opens EigenH AI Native EHR.
+
+They click:
+
+**Demo Academy → Explore Workflows by Role → Medical Assistant → Watch Demo**
+
+The system automatically opens the real Medical Assistant dashboard.
+
+A tutorial cursor appears.
+
+A trainer explains the screen.
+
+The cursor moves toward the patient queue.
+
+It clicks the correct patient.
+
+The patient record opens.
+
+The trainer explains what information needs review.
+
+The tutorial demonstrates each relevant field and verification action.
+
+AI-prepared information visibly appears with its source.
+
+The user sees which fields require human review.
+
+The system saves the verified information.
+
+The patient's status changes.
+
+The next clinician work item appears.
+
+The trainer explains the handoff.
+
+The demonstration ends with a clear summary of what the Medical Assistant accomplished.
+
+Then the presenter selects:
+
+**Clinician → Watch Demo**
+
+The corresponding clinician tutorial starts from the appropriate prepared patient checkpoint.
+
+The same quality applies to every verified role tutorial.
+
+The entire Scheduled Patient Journey must also play from beginning to end.
+
+A person watching these tutorials should understand how to use EigenH AI Native EHR without needing the presenter to manually demonstrate every click.
+
+This must feel like watching a knowledgeable human trainer operating real EHR software.
+
+Not a slideshow.
+
+Not a fake video.
+
+Not decorative AI animation.
+
+Not disconnected synthetic screens.
+
+**A functioning AI Native EHR that teaches people how to use it.**
+
+START BY INSPECTING THE CURRENT APPLICATION. IMPLEMENT THE FIRST COMPLETE WORKING TUTORIAL, THEN THE FLAGSHIP CONNECTED JOURNEY, AND VERIFY REAL INTERACTIONS BEFORE CLAIMING SUCCESS.

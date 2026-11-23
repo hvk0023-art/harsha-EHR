@@ -1,0 +1,6 @@
+{
+  "name": "EigenH AI Native HMS",
+  "description": "Interactive AI-native Hospital Management System prototype coordinating patient records, clinical workflows, hospital operations, revenue cycle, and human-approved AI actions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,2257 @@
+
+# EIGENH AI NATIVE HMS
+# COMPLETE INTERACTIVE PRODUCT PROTOTYPE
+# GOOGLE AI STUDIO — MASTER BUILD PROMPT
+
+You are a principal healthcare product architect, senior UX designer, clinical workflow analyst, and expert React/TypeScript engineer.
+
+Your assignment is to DESIGN AND BUILD a complete, beautiful, consistent, highly interactive AI Native Hospital Management System prototype for EigenH.
+
+This is not a landing page, presentation, static mockup, or collection of disconnected dashboard designs.
+
+Build a real navigable frontend application with connected synthetic data, working forms, realistic workflows, reusable components, and demonstrable state changes.
+
+The complete product should feel like a thoughtfully designed healthcare application, not a generic AI-generated admin dashboard.
+
+==================================================
+1. PRODUCT CONTEXT — UNDERSTAND THIS FIRST
+==================================================
+
+Product name:
+EigenH AI Native HMS
+
+Organisation:
+EigenH
+
+Existing EigenH product context:
+EigenH develops AI-powered healthcare workflow solutions, including medical receptionist and patient-access capabilities.
+
+The company is expanding its product direction toward a broader, patient-centric hospital and healthcare operations platform.
+
+Leadership vision:
+Build an AI-native system of actions rather than merely another system of records.
+
+The EHR provides the clinical record foundation.
+
+The HMS coordinates hospital operations.
+
+The AI-native layer helps authorised users understand information, prepare work, coordinate processes, and execute approved actions.
+
+The intended initial EHR foundation is Medplum.
+
+Do not rebuild Medplum.
+
+Do not claim Medplum integration exists in this prototype.
+
+Longer-term architecture, including knowledge graphs and clinical decision support, is not finalised.
+
+Current assignment:
+Build an interactive frontend prototype to validate the intended product experience and workflows.
+
+Separate:
+- What is implemented in the prototype.
+- What is simulated.
+- What requires real integration.
+- What is a future product capability.
+
+All patient, provider, clinical, operational, billing and insurance data must be fictional.
+
+Display:
+"Prototype — not for clinical use"
+
+Never suggest that synthetic transactions have been transmitted to real external systems.
+
+==================================================
+2. REQUIRED SOURCE DOCUMENTS
+==================================================
+
+Primary functional specification:
+
+"EHR - Portal Menu Options v1.0"
+EigenH Product Team
+18 November 2026
+
+If this document is attached:
+Read the entire document before implementation.
+
+It contains:
+- Global navigation architecture
+- Patient workspace architecture
+- Home dashboard behaviour
+- Shared interaction rules
+- 38 modules, M01 through M38
+- Detailed screens D01 through D06
+- Reference label mappings
+- Design and delivery considerations
+
+Treat this specification as the primary functional and navigation baseline.
+
+Additional context:
+"AI Native EMR Catch Up"
+17 November 2026
+
+This meeting establishes the broader product direction:
+- Separate HMS repository
+- Patient-centric design
+- Initial Medplum direction
+- AI-native system of actions
+- Functional, restrained healthcare UI
+- Synthetic-data-driven prototyping
+- Future workflow intelligence
+
+If the meeting transcript is attached, use it for architectural context, not as permission to invent approved clinical functionality.
+
+Design reference:
+EigenH-Design-system
+
+If the design system is accessible, inspect its branding, token, typography and component specifications before building.
+
+If the repository is not accessible, use the brand rules explicitly provided in this prompt.
+
+Do not claim you accessed files or repositories that are not actually available.
+
+The complete screen inventory is repeated below so the application can be planned even if external attachments are unavailable.
+
+==================================================
+3. NON-NEGOTIABLE DESIGN REQUIREMENTS
+==================================================
+
+The visual design must preserve EigenH identity.
+
+Official established palette:
+
+Deep Eigen navy: #042C53
+Eigen blue: #185FA5
+Supporting blue: #378ADD
+Soft blue: #85B7EB
+Mist blue: #E6F1FB
+Warm paper: #F1EFE8
+Positive teal: #1D9E75
+Accessible success text: #0F6E50
+Warning amber: #C97A1B
+Danger red: #B4321F
+Readable secondary text: #5F5D56
+
+Use white and restrained neutral surfaces as supporting backgrounds.
+
+Do not change the primary brand identity.
+
+Do not invent a new official logo.
+
+Use an approved logo asset only if supplied.
+Otherwise use a simple typographic "EigenH" wordmark.
+
+Typography:
+- IBM Plex Sans for major display headings
+- Inter for normal interface content
+- JetBrains Mono for MRNs, timestamps and numeric identifiers
+
+Use sensible font fallbacks when necessary.
+
+Use Lucide icons or a consistent professional medical icon family.
+
+Do not use emojis as interface icons.
+
+Use a 4px spacing system.
+
+Minimum accessibility target:
+WCAG 2.1 AA
+
+Use:
+- Visible focus rings
+- Accessible form labels
+- Keyboard navigation
+- Sufficient colour contrast
+- Text indicators alongside status colours
+- Responsive tables
+- Appropriate touch-target sizes
+- Accessible modals and drawers
+
+No unnecessary animations.
+No excessive shadows.
+No glassmorphism.
+No colourful gradients.
+No decorative stock imagery.
+No giant marketing illustrations inside the application.
+
+Aim for a calm, credible and contemporary healthcare interface.
+
+==================================================
+4. EXTREMELY IMPORTANT — MINIMAL TEXT UX
+==================================================
+
+This is one of the highest-priority requirements.
+
+The interface must NOT become filled with unnecessary text.
+
+We want high information value, not high word count.
+
+A new clinician, nurse, front-desk employee, billing executive or administrator should be able to recognise what a screen does within a few seconds.
+
+Follow these rules:
+
+1. Use short, meaningful headings.
+
+Examples:
+"Today's Patients"
+"Pending Review"
+"New Order"
+"Active Medications"
+"Care Plan"
+"Claims"
+
+2. Avoid repetitive explanatory paragraphs.
+
+3. Do not display technical architecture descriptions on ordinary screens.
+
+4. Use progressive disclosure.
+
+Show essential information first.
+
+Reveal additional details through:
+- Tabs
+- Expandable sections
+- Drawers
+- Popovers
+- Details pages
+- Secondary actions
+
+5. Prefer structured information over prose.
+
+Use:
+- Tables
+- Timelines
+- Compact cards
+- Status indicators
+- Charts when meaningful
+- Short labels
+- Clear primary buttons
+
+6. Avoid displaying 15–20 metric cards just to fill space.
+
+7. Every dashboard must focus on the current user's immediate decisions and work.
+
+8. Never repeat the same metric in several cards without a clear purpose.
+
+9. Use concise tooltips for uncommon medical and operational terms.
+
+10. Empty states should be short and useful.
+
+Example:
+"No pending results"
+"New results will appear here."
+
+11. Use one prominent primary action per screen.
+
+12. Keep secondary actions available but visually quiet.
+
+13. Do not show advanced filters permanently unless frequently needed.
+
+14. Avoid long breadcrumbs when a short title and Back action are sufficient.
+
+15. Do not hide clinically important safety information merely to reduce text.
+
+16. Never abbreviate important clinical information ambiguously.
+
+17. Use whitespace thoughtfully, but avoid giant unused gaps.
+
+18. Avoid unnecessarily large cards when compact tables communicate more information.
+
+19. No decorative metrics, invented KPIs or meaningless charts.
+
+20. Use plain, professional American English.
+
+Critical rule:
+Reduce unnecessary TEXT, not important FUNCTIONALITY.
+
+Every specified feature must remain discoverable.
+
+The application should achieve a balance between clinical information density and excellent visual clarity.
+
+==================================================
+5. APPLICATION STRUCTURE
+==================================================
+
+Build three related application shells.
+
+A. GLOBAL STAFF PORTAL
+
+Main navigation:
+
+1. Home
+2. Patients
+3. Schedule
+4. Front Desk
+5. Inbox
+6. Tasks
+7. Care Management
+8. Billing
+9. Reports
+10. Hospital and Specialties
+11. Administration
+
+Help and Profile must also be accessible.
+
+Use a collapsible sidebar.
+
+Do not display every child feature in the sidebar simultaneously.
+
+Open related screens through contextual subnavigation.
+
+B. PATIENT WORKSPACE
+
+Selecting a patient opens a persistent patient chart with these tabs:
+
+1. Overview
+2. Timeline
+3. History
+4. Encounters
+5. Medications
+6. Orders and Results
+7. Care Plan
+8. Communications
+9. Documents and Forms
+10. AI Agent
+11. Account
+
+Persistent patient header:
+- Full name
+- MRN
+- DOB / age
+- Relevant verified alerts
+- Care team access
+- Current encounter context
+
+Warn before switching away from unsaved work.
+
+Patient tabs must belong to the same patient record, not separate disconnected applications.
+
+C. PATIENT AND CAREGIVER PORTAL
+
+Create a visually related but simpler patient-facing interface.
+
+Include:
+- My Health Summary
+- Appointments
+- Records and Results
+- Medications
+- Messages
+- Forms
+- Bills
+- Care Plans and Education
+- Sharing
+- Authorised Caregiver Access
+
+The patient-facing portal must not expose staff-only notes or internal administrative functions.
+
+==================================================
+6. ROLES AND LOCATION CONTEXT
+==================================================
+
+Provide role-preview modes for:
+
+- Clinician
+- Nurse / Care Coordinator
+- Front Desk
+- Billing User
+- Administrator
+
+Also support relevant departmental roles where needed:
+- Pharmacist
+- Laboratory Staff
+- Hospital Operations
+- Care Manager
+
+The UI must change according to the selected role.
+
+This is a prototype role preview, not actual authentication or security enforcement.
+
+Make that distinction clear.
+
+Role-aware behaviour:
+- Sidebar visibility
+- Default dashboard
+- Work queues
+- Quick actions
+- Contextual controls
+- Patient access simulations
+- Reports
+- Approval actions
+
+Front Desk should see operational priorities, not irrelevant clinical counters.
+
+Clinicians should see appointments, encounters, results and signatures.
+
+Nurses should see assigned patients, observations and care tasks.
+
+Billing staff should see invoices, claim exceptions and collections.
+
+Administrators should see configuration, users, integrations and audit work.
+
+Support organisation and location switching.
+
+Use at least three synthetic facilities with realistic relationships and distinct records.
+
+Changing location must update:
+- Patient lists
+- Schedules
+- Tasks
+- Operational counts
+- Staff
+- Relevant facility data
+
+Do not make the location switcher decorative.
+
+Always show the appropriate facility timezone for time-sensitive information.
+
+Default to a US-focused demonstration dataset.
+
+India-specific features must appear when an India demo region is selected.
+
+Do not mix US Medicare workflows with Indian ABDM settings without clear regional separation.
+
+==================================================
+7. COMPLETE MODULE INVENTORY — ALL 38 REQUIRED
+==================================================
+
+Every module below must be represented in the application.
+
+Every listed child capability must have a discoverable UI entry and an appropriate interactive prototype.
+
+Do not reduce all modules to identical empty tables.
+
+Build reusable layouts, but make the data and operations domain-specific.
+
+M01 — HOME AND MY WORKSPACE
+
+Implement:
+- My Dashboard
+- Today's Patients
+- My Work Queue
+- Pending Signatures
+- Critical Alerts
+- Recent / Favourite Patients
+- Team Dashboard
+- Quick Actions
+
+Dashboard requirements:
+- Role-specific priorities
+- Today's appointments
+- Work ownership
+- Relevant alerts
+- Patient navigation
+- Quick actions
+- Recent activity
+
+Quick actions:
+Register Patient
+Book Appointment
+Create Task
+Start Encounter
+
+Use connected synthetic state.
+
+M02 — PATIENT DIRECTORY AND REGISTRATION
+
+Implement:
+- Find Patient
+- Register Patient
+- Demographics & Contacts
+- Identifiers
+- Emergency Contacts
+- Family / Caregiver Relationships
+- Guarantor / Responsible Party
+- Duplicate Review & Merge
+- Patient Status
+
+Functional demonstration:
+Search patients by name, MRN, DOB and identifiers.
+
+Open existing patient records.
+
+Register a new synthetic patient.
+
+Detect possible duplicates.
+
+Review duplicate candidates.
+
+Update demographics.
+
+Manage caregivers and patient status.
+
+Show validation and confirmation states.
+
+M03 — SCHEDULING AND APPOINTMENTS
+
+Implement:
+- Calendar
+- Book Appointment
+- Provider Availability
+- Appointment Types
+- Resource Scheduling
+- Waitlist
+- Recurring / Group Visits
+- Appointment Status
+- Reminders & Calendar Sync
+
+Provide:
+Day, week, month and agenda views.
+
+Book, reschedule, cancel and confirm.
+
+Support different providers, locations, appointment types and resources.
+
+Prevent duplicate mock bookings and conflicting slots.
+
+Show availability changes.
+
+Support waitlist and recurring-visit examples.
+
+Calendar sync and reminders are simulated only.
+
+M04 — FRONT DESK AND PATIENT ACCESS
+
+Implement:
+- Pre-registration
+- Check-in
+- Walk-ins & Queue
+- Intake Readiness
+- Room / Provider Assignment
+- Check-out
+- Visit Estimates / Collections
+- Kiosk / Self Check-in
+
+Demonstrate:
+Pre-arrival registration.
+Identity confirmation.
+Arrival status.
+Waiting-room queue.
+Missing forms.
+Room allocation.
+Check-out.
+Follow-up scheduling.
+Simulated payment collection.
+
+Front Desk screens should be operational and fast to use.
+
+M05 — PATIENT SUMMARY AND LONGITUDINAL RECORD
+
+Implement:
+- Clinical Overview
+- Health Timeline
+- Active Problems
+- Current Medications & Allergies
+- Recent Results & Trends
+- Care Team
+- Alerts & Precautions
+- Record Sources
+
+Design a highly readable patient overview.
+
+Include:
+Current conditions.
+Allergy warnings.
+Medications.
+Recent encounters.
+Latest results.
+Upcoming appointment.
+Care team.
+Source and verification status.
+
+Timeline must combine events from multiple clinical modules into one chronological view.
+
+M06 — CLINICAL HISTORY
+
+Implement:
+- Medical History
+- Surgical / Procedure History
+- Family History
+- Social History
+- Allergies & Reactions
+- Immunisation History
+- Reproductive / Birth History
+- Social Needs & Accessibility
+- Advance Directives
+
+Support structured record viewing and mock editing.
+
+Show source, last-reviewed date and verification status.
+
+M07 — ENCOUNTERS AND VISIT NOTES
+
+Implement:
+- Start / Resume Encounter
+- Encounter History
+- Clinical Notes
+- Diagnoses & Assessment
+- Treatment Plan
+- Templates & Smart Phrases
+- Drafts / Sign / Co-sign
+- Amendments / Addenda
+- After-Visit Summary
+- Group Visit Documentation
+
+Create a functional encounter workspace.
+
+Support:
+SOAP note structure.
+Draft saving.
+Templates.
+Assessment.
+Plan.
+Diagnosis selection.
+Review.
+Signing simulation.
+Co-signing.
+After-visit summary.
+
+Additional note-editor controls:
+- Scribe Now
+- Recordings
+- Review with AI
+- View Comments
+- View / Edit mode
+- Save / Sync status
+- Signature actions
+
+Do not silently sign notes.
+
+Signed notes become read-only.
+
+Amendments preserve original content.
+
+Any recording functionality must remain an explicit synthetic demo unless real consent-controlled recording is separately authorised.
+
+M08 — VITALS, OBSERVATIONS AND FLOWSHEETS
+
+Implement:
+- Vital Signs
+- Anthropometrics
+- Observation Forms
+- Longitudinal Flowsheets
+- Clinical Scores
+- Patient-Reported Measures
+- Device Measurements
+
+Create editable observation forms with units.
+
+Show historical measurements and trends.
+
+Validate numeric inputs and dates.
+
+Do not create unsupported clinical interpretations.
+
+M09 — ORDERS AND REQUISITIONS
+
+Implement:
+- New Order
+- Order Catalogue
+- Order Sets
+- Draft / Pending Orders
+- Order Tracking
+- Requisitions
+- Standing Orders
+- Order Exceptions
+
+Support order creation, drafts, review, tracking and cancellation simulation.
+
+Order and requisition must remain linked but distinct.
+
+Show status changes throughout the prototype.
+
+M10 — MEDICATIONS AND PRESCRIBING
+
+Implement:
+- Medication List
+- Medication Reconciliation
+- New Prescription
+- Refills & Renewals
+- Medication Safety Checks
+- Pharmacy Directory
+- Prescription Status
+- Formulary / Coverage
+- Controlled-Medication Workflow
+
+Provide:
+Active medication table.
+History.
+Medication reconciliation UI.
+Refill requests.
+Prescription draft form.
+Pharmacy selection.
+Status tracking.
+
+Use synthetic medication records.
+
+Do not transmit prescriptions.
+
+Medication interaction or allergy indicators must be illustrative, not represented as a validated clinical safety engine.
+
+Controlled-medication workflows must not simulate real authorisation or transmission.
+
+M11 — LABORATORY
+
+Implement:
+- Lab Orders
+- Collection / Specimens
+- Pending Results
+- Result Viewer
+- Result Trends
+- Abnormal / Critical Results
+- Review & Patient Notification
+- Corrected Reports
+
+Show:
+Test name.
+Collection date.
+Result.
+Units.
+Reference interval.
+Flag.
+Result status.
+Review owner.
+
+Support longitudinal visualisation.
+
+Critical results must have clear visual priority.
+
+Allow simulated acknowledgement and follow-up.
+
+Corrected reports must retain earlier versions.
+
+M12 — IMAGING AND DIAGNOSTIC PROCEDURES
+
+Implement:
+- Imaging Orders
+- Diagnostic Scheduling
+- Preparation & Safety Forms
+- Reports
+- Image Viewer / PACS
+- Prior Studies
+- Findings Follow-up
+- Other Diagnostics
+
+Use simulated imaging report data.
+
+Provide a mock viewer with clearly labelled sample images or diagrams.
+
+Do not represent the viewer as a connected PACS.
+
+Allow comparisons between prior studies and current reports.
+
+M13 — RESULTS AND CLINICAL INBOX
+
+Implement:
+- All Incoming Results
+- Assigned to Me
+- Unassigned Results
+- Critical / Overdue
+- Acknowledge / Sign Off
+- Follow-up Actions
+- Coverage & Delegation
+
+Create a shared result-review queue.
+
+Allow:
+Filtering.
+Assignment.
+Review.
+Acknowledgement.
+Follow-up task creation.
+Delegation.
+
+Keep review state consistent with patient results.
+
+M14 — CARE PLANS AND CARE MANAGEMENT
+
+Implement:
+- Active Care Plans
+- Goals & Outcomes
+- Interventions
+- Care Programmes
+- Case Management
+- Care Gaps
+- Transitions of Care
+- Multidisciplinary Review
+
+Show structured care goals, interventions, owners, due dates and progress.
+
+Support mock programme enrolment and care-gap follow-up.
+
+M15 — REFERRALS AND EXTERNAL CARE
+
+Implement:
+- Incoming Referrals
+- Outgoing Referrals
+- Triage & Acceptance
+- Provider Directory
+- Referral Status
+- Referral Documents
+- Closed-Loop Follow-up
+
+Demonstrate:
+Referral received.
+Triage.
+Accepted.
+Scheduled.
+Seen.
+Outcome received.
+Closed.
+
+Keep the referral connected to the patient and related appointment.
+
+M16 — TASKS AND TEAM WORKLISTS
+
+Implement:
+- My Tasks
+- Team Tasks
+- Patient Tasks
+- Task Creation & Assignment
+- Subtasks / Dependencies
+- Recurring Tasks
+- Overdue & Escalations
+- Completed Work / History
+- Time Tracking
+- Activity History
+- Comments & Mentions
+- Patient Visibility
+- Linked Record
+- Inline / Full View
+
+Allow:
+Create.
+Assign.
+Prioritise.
+Change status.
+Add subtasks.
+Set due date.
+Comment.
+Mention.
+Track time.
+Link patient and source record.
+Complete.
+Review history.
+
+Task states:
+To Do
+In Progress
+Complete
+
+Make My Work and Team Work genuinely different.
+
+Task counts must derive from the same records as the displayed lists.
+
+M17 — MESSAGING AND COMMUNICATIONS
+
+Implement:
+- Patient Messages
+- Care-Team Chat
+- Shared Inbox
+- SMS / Supported Channels
+- Calls & Voicemail
+- Internal Notes
+- Priority Tags & Assignment
+- Delivery / Response Status
+- Communication Preferences
+
+Conversation UI must include:
+Participant list.
+Message thread.
+Attachments.
+Composer.
+Tags.
+Priority.
+Owner.
+Status.
+
+Composer modes:
+In-App Message
+Text Message
+Internal Note
+Page, when enabled.
+
+Clearly distinguish internal notes from patient-visible messages.
+
+Use simulated sending and delivery.
+
+No external messaging API.
+
+M18 — FAX AND DOCUMENT EXCHANGE
+
+Implement:
+- Fax Inbox
+- Send Fax
+- Patient Matching
+- Classification & Routing
+- Delivery Tracking
+- Recipient Directory
+
+Fax form:
+Patient.
+Verified recipient.
+Subject.
+Cover-page message.
+Selected documents.
+Preview.
+Send simulation.
+
+Provide transmission states and failure/retry examples.
+
+Never send an actual fax.
+
+M19 — DOCUMENTS AND MEDICAL RECORDS
+
+Implement:
+- Document Library
+- Upload / Scan
+- Classification & Indexing
+- Review / Signatures
+- External Records
+- Release of Information
+- Export / Print
+- Amendments & Provenance
+- Import Records
+- Refresh Records
+- External Notes
+- External Conditions
+- Record Filters
+- Note Details
+- View Source
+
+Include document type, author, source, date, version and verification state.
+
+Support safe local synthetic-document examples.
+
+External conditions must remain distinct from locally verified diagnoses.
+
+M20 — FORMS, QUESTIONNAIRES AND CONSENTS
+
+Implement:
+- Intake Forms
+- Clinical Questionnaires
+- Consent Forms
+- Electronic Signatures
+- Assigned / Pending Forms
+- Responses & Scores
+- Form Builder
+- Versions & Languages
+
+Allow:
+Assign.
+Complete.
+Save draft.
+Submit.
+View responses.
+Track form status.
+Create a mock form template.
+
+Preserve form versions.
+
+M21 — TELEHEALTH AND VIRTUAL CARE
+
+Implement:
+- Virtual Waiting Room
+- Start / Join Visit
+- Device / Connection Check
+- Participants & Interpreter
+- Virtual Encounter
+- Asynchronous Consultation
+- Follow-up & Technical Exceptions
+
+Create a realistic telehealth pre-visit and waiting-room interface.
+
+A simulated visit must be clearly labelled.
+
+Do not falsely claim that a live video connection exists.
+
+M22 — PATIENT AND CAREGIVER PORTAL
+
+Implement:
+- My Health Summary
+- Appointments
+- Notes Results & Documents
+- Medications / Refill Requests
+- Messages
+- Forms & Consents
+- Bills & Payments
+- Care Plans & Education
+- Proxy / Caregiver Access
+- Record Sharing & Requests
+
+Keep patient-facing design simpler than staff-facing screens.
+
+Support demo booking, forms, messages, refill requests and educational progress.
+
+Include caregiver visibility examples.
+
+M23 — REMOTE MONITORING AND HOME CARE
+
+Implement:
+- Programme Enrolment
+- Device Assignment
+- Measurement Dashboard
+- Missing Readings / Adherence
+- Alert Review
+- Outreach & Interventions
+- Home Visits
+
+Use simulated device readings.
+
+Show trends and missing-reading indicators.
+
+Support alert assignment and follow-up.
+
+M24 — INSURANCE ELIGIBILITY AND AUTHORISATIONS
+
+Implement:
+- Coverage / Policies
+- Eligibility Checks
+- Benefits & Patient Responsibility
+- Prior Authorisations
+- Authorisation Documents
+- Validity / Usage Tracking
+- Exceptions & Follow-up
+
+Allow a mock eligibility request with simulated response.
+
+Show:
+Payer.
+Plan.
+Response date.
+Coverage status.
+Benefits.
+Deductibles.
+Authorisation status.
+
+Never imply that eligibility confirms payment.
+
+M25 — BILLING AND REVENUE CYCLE
+
+Implement:
+- Charge Capture
+- Coding Review
+- Invoices / Superbills
+- Claim Preparation & Validation
+- Submission & Status
+- Rejections / Denials / Appeals
+- Remittance & Payment Posting
+- Accounts Receivable
+- Refunds / Adjustments
+- Packages / Memberships
+- Financial Reconciliation
+
+Support mock financial workflows.
+
+Provide meaningful invoice, claim and payment detail screens.
+
+Allow simulated claim creation, validation, submission, rejection, appeal and resolution.
+
+Do not actually charge cards or transmit claims.
+
+M26 — INPATIENT ADMISSIONS AND BED MANAGEMENT
+
+Implement:
+- Admissions
+- Patient Census
+- Bed Board
+- Transfers
+- Ward Rounds
+- Discharge Planning
+- Discharge Summary
+- Transfer Centre
+
+Create an interactive bed-management board.
+
+Bed states:
+Available.
+Occupied.
+Blocked.
+Cleaning.
+
+Support synthetic admission, transfer and discharge workflows.
+
+M27 — NURSING AND MEDICATION ADMINISTRATION
+
+Implement:
+- Nursing Assessments
+- Nursing Care Plans
+- Observation Charts
+- eMAR
+- Barcode Administration
+- Intake / Output
+- Wounds / Devices / Lines
+- Handover
+
+Provide a nursing worklist and medication-administration demonstration.
+
+Use simulated barcode verification only.
+
+Capture structured handover notes.
+
+M28 — EMERGENCY, SURGERY AND CRITICAL CARE
+
+Implement:
+- Emergency Tracking Board
+- Triage
+- Emergency Encounter
+- Theatre / Operating-Room Schedule
+- Preoperative Assessment
+- Anaesthesia Record
+- Operative / Recovery Notes
+- Critical-Care Flowsheets
+
+Use synthetic emergency and surgical cases.
+
+Provide:
+Tracking board.
+Triage categories.
+Location/status.
+Operating-room timetable.
+Readiness checklist.
+Clinical documentation examples.
+
+No real clinical triage or treatment decisions.
+
+M29 — PHARMACY INVENTORY AND DEPARTMENTAL OPERATIONS
+
+Implement:
+- Pharmacy Verification
+- Dispensing
+- Stock / Batch / Expiry
+- Procurement & Replenishment
+- Returns / Recalls
+- Laboratory Operations
+- Radiology Operations
+- Blood Bank / Transfusion
+- Sterilisation / Equipment
+
+Build a practical pharmacy inventory demonstration.
+
+Include:
+Medicine catalogue.
+Batch numbers.
+Stock quantity.
+Reorder threshold.
+Expiry.
+Supplier.
+Stock movement.
+Procurement request.
+Dispensing record.
+Returns/recalls.
+
+Changes must update the relevant mock inventory balances.
+
+Departmental operations should have distinct appropriate work queues.
+
+M30 — SPECIALTY WORKSPACES
+
+Implement discoverable workspaces for:
+
+- Paediatrics
+- Obstetrics & Gynaecology
+- Behavioural Health
+- Cardiology
+- Oncology
+- Orthopaedics / Rehabilitation
+- Ophthalmology
+- Dental
+- Dermatology
+- Nephrology / Dialysis
+- Fertility
+- Palliative Care
+
+Every specialty should have its own relevant patient worklist and contextual workspace.
+
+Do not create separate patient identities for each specialty.
+
+Reuse the common patient record.
+
+Give Nephrology / Dialysis especially thoughtful prototype examples:
+- Longitudinal kidney-related measurements
+- Recurring follow-up visits
+- Dialysis session tracking
+- Lab trends
+- Referral tracking
+- Care coordination
+
+Keep all specialty-specific clinical fields provisional pending clinical review.
+
+M31 — POPULATION HEALTH, QUALITY AND RESEARCH
+
+Implement:
+- Patient Registries
+- Cohort Search
+- Risk Review
+- Care-Gap Outreach
+- Quality Measures
+- Public-Health Reporting
+- Safety / Incident Review
+- Research Cohorts & Recruitment
+- Research Consent & Data Access
+
+Use synthetic cohorts.
+
+Support filters, saved views and aggregate counts.
+
+Research functionality must have separate mock access and consent states.
+
+M32 — REPORTS AND ANALYTICS
+
+Implement:
+- Clinical Reports
+- Operational Reports
+- Financial Reports
+- Provider / Team Reports
+- Patient Engagement
+- Quality Dashboards
+- Custom Report Builder
+- Scheduled Reports / Export
+- Data Quality
+
+Create real charts from the synthetic dataset.
+
+Filters must change charts and tables.
+
+Include metric definitions and selected dates.
+
+Do not generate random KPI values independent of underlying data.
+
+M33 — AI ASSISTANCE AND AUTOMATION
+
+Implement:
+- AI Scribe
+- Chart Summary
+- Ask the Chart
+- Document Extraction
+- Coding Suggestions
+- Draft Communications
+- Workflow Automations
+- Human Review Queue
+- Automation Runs & Failures
+- AI Quality & Feedback
+
+Create an interactive, clearly simulated AI-native experience.
+
+Use synthetic chart content and deterministic example outputs when no AI backend exists.
+
+Show source references.
+
+Show uncertainty when appropriate.
+
+Require human review for proposed clinical changes.
+
+No autonomous signing, prescribing, transmitting or clinical decision-making.
+
+M34 — INTEGRATIONS AND INTEROPERABILITY
+
+Implement:
+- Connected Systems
+- External Record Exchange
+- Interface Monitor
+- Data Mapping
+- Reconciliation Queue
+- API Applications
+- Webhooks / Events
+- Import / Migration
+- Export / Portability
+- Integration Sandbox
+
+Show simulated connected-system statuses.
+
+Demonstrate successful, delayed, failed and retry states.
+
+Provide a source-linked reconciliation example.
+
+Do not claim actual external systems are connected.
+
+M35 — INDIA AND ABDM WORKSPACE
+
+Implement:
+- ABHA Identification
+- Scan & Share
+- Record Linking
+- Consent Requests
+- Consent Status
+- Share Records / HIP
+- Retrieve Records / HIU
+- Exchange History & Errors
+- Facility / Professional Configuration
+
+This is a regional India-only workspace.
+
+Use synthetic identifiers and consent records.
+
+Show granted, expired and revoked consent states.
+
+Do not connect to real ABDM services.
+
+M36 — ADMINISTRATION AND CONFIGURATION
+
+Implement:
+- Organisation / Locations
+- Users / Teams
+- Roles & Permissions
+- Provider Profiles
+- Clinical Templates
+- Catalogues / Terminology
+- Custom Fields / Pages
+- Workflow Rules
+- Branding / Localisation
+- Subscription / Feature Access
+
+Build working configuration forms.
+
+Feature access controls must influence the prototype navigation.
+
+Role editing is simulated only.
+
+Use "Custom Page" as the canonical label, never "Sample Custom Page."
+
+M37 — PRIVACY, SECURITY AND AUDIT
+
+Implement:
+- Access Audit
+- Record Change History
+- Emergency Access Review
+- Authentication & Sessions
+- Patient / Proxy Permissions
+- Disclosure History
+- Retention / Archiving
+- Security Incidents
+- Backup / Recovery Status
+- Vendor / AI Data Controls
+
+Provide a synthetic audit trail of prototype actions.
+
+Clearly label authentication, security, backup and compliance controls as simulations.
+
+Do not claim real security enforcement.
+
+M38 — HELP, SUPPORT AND PERSONAL SETTINGS
+
+Implement:
+- Help Centre
+- Training / Onboarding
+- Support Requests
+- System Status
+- Release Notes
+- Personal Preferences
+- Coverage / Out-of-Office
+- Feedback
+
+Support:
+Searchable help.
+Preference editing.
+Support ticket creation.
+Feedback submission.
+Coverage/delegation settings.
+
+Use local mock state.
+
+==================================================
+8. SIX DETAILED SCREENS — MUST BE IMPLEMENTED
+==================================================
+
+These six screens are explicitly specified in the product document.
+
+Do not skip them.
+
+D01 — PATIENT AI AGENT
+
+Location:
+Patients > Patient > AI Agent
+
+Layout:
+Left: Conversation history.
+Centre: Conversation and action progress.
+Right: Linked-record preview and sources.
+
+Include:
+- New Conversation
+- Conversation History
+- Ask the Patient Record
+- Sources
+- Request Interpretation
+- Multi-Action Request
+- Action Progress
+- Review / Approve / Cancel
+- Draft Clinical Artefacts
+- Appointment Assistance
+- Communication Assistance
+- File to Chart
+- Linked Record Preview
+- Action Summary
+
+Example:
+User asks to prepare a lab order, schedule a follow-up and create a task.
+
+The agent creates separate proposed actions.
+
+The lab order may remain a draft.
+The appointment may await approval.
+The task may be created.
+
+Never report the whole request as completed if individual actions remain pending.
+
+Use source-linked synthetic outputs.
+
+D02 — AI DATA ANALYST
+
+Location:
+Reports > AI Data Analyst
+
+Include:
+- New Analysis
+- Analysis History
+- Appointment Analysis
+- Revenue Breakdown
+- Patient Demographics
+- Provider Performance
+- Trending Analysis
+- Comparison Analysis
+- Insights Analysis
+- Forecasting Analysis
+- Visualisations & Detailed Analysis
+
+Let users select suggested analytical questions.
+
+Render actual charts using synthetic data.
+
+Show:
+Date range.
+Filters.
+Metric definition.
+Observation versus projection.
+Forecast uncertainty.
+
+When natural-language questions cannot be computed from available records, provide an honest unsupported-query response.
+
+D03 — CLAIM SUBMISSION SUMMARY
+
+Location:
+Reports > Financial Reports > Claim Submission Summary
+
+Include:
+- Submitted Date Range
+- Organisation / Provider Filters
+- Total Encounters
+- Total Charges
+- Claims Submitted
+- Days to Submission
+- Resubmission Rate
+- Submission Activity by Week
+- Average Charge per Visit
+- Secondary Claims
+
+Provide:
+Metric cards.
+Weekly activity chart.
+Detailed claim table.
+Clickable drill-down.
+
+Prevent double-counting secondary submissions.
+
+D04 — ACCOUNTS RECEIVABLE AGING
+
+Location:
+Reports > Financial Reports > Accounts Receivable Aging
+
+Include:
+- As-of Date / Report Scope
+- Aging Basis
+- Patient / Organisation / Provider Filters
+- Total Open Balance
+- Over 90 / Over 180 Days
+- Largest Payer Balance
+- Aging Buckets
+- Aging Distribution by Payer Category
+- Group by Payer / Payer Category
+- Balance / Percentage View
+
+Aging buckets:
+0–30
+31–60
+61–90
+91–120
+121–150
+151–180
+Over 180 days
+
+Ensure table, charts and cards use the same aging basis.
+
+D05 — PATIENT BILLS AND PAYMENT COLLECTION
+
+Location:
+Patient > Account > Bills > Invoice
+
+Include:
+- Invoice Line Items
+- Subtotal / Total / Amount Due
+- Collection Method
+- Automatic Collection
+- Saved Payment Methods
+- Default Payment Method
+- Billing Information Status
+- Invoice Payment Status
+- Finish and Go Back
+
+Use masked fictional payment references.
+
+Do not collect real card information.
+
+Automatic payment may only be simulated where a synthetic authorisation record exists.
+
+D06 — MEDICARE ELIGIBILITY SUMMARY
+
+Location:
+Patient > Account > Coverage > Eligibility Result
+
+Include:
+- Summary
+- Medicare Part A
+- Medicare Part B
+- Preventive Services
+- Non-Covered
+- Insurance Status
+- Deductible Information
+- Quick Summary
+- Eligibility As-of Date
+
+Use consistent mock eligibility responses.
+
+Eligibility does not guarantee payment.
+
+==================================================
+9. REQUIRED END-TO-END DEMO WORKFLOWS
+==================================================
+
+The product must not be a set of unrelated screens.
+
+Build connected workflows.
+
+WORKFLOW A — PATIENT ENTRY
+
+Support three major entry paths:
+1. Scheduled/self-initiated visits, including walk-ins
+2. Referrals
+3. Emergency arrivals
+
+Maintain subtypes so scheduled arrivals and unscheduled walk-ins remain distinguishable.
+
+WORKFLOW B — NEW PATIENT JOURNEY
+
+Register synthetic patient
+→ Duplicate checking
+→ Demographics
+→ Appointment booking
+→ Pre-registration
+→ Check-in
+→ Encounter
+→ Clinical note
+→ Order
+→ Result
+→ Follow-up
+→ Check-out
+
+Every completed step should update relevant screens.
+
+WORKFLOW C — EXISTING PATIENT FOLLOW-UP
+
+Find patient
+→ Open patient overview
+→ Review timeline
+→ Review active problems and medications
+→ Open scheduled follow-up
+→ Start encounter
+→ Save draft note
+→ Create follow-up task
+
+WORKFLOW D — LAB RESULT
+
+Create lab order
+→ Simulate specimen collection
+→ Simulate result
+→ Mark abnormal if applicable
+→ Review result
+→ Create follow-up task
+→ Update patient timeline
+
+WORKFLOW E — REFERRAL
+
+Receive referral
+→ Triage
+→ Accept
+→ Schedule
+→ Complete visit
+→ Attach outcome
+→ Close referral loop
+
+WORKFLOW F — REVENUE CYCLE
+
+Visit completed
+→ Charge captured
+→ Invoice or claim prepared
+→ Validation
+→ Simulated submission
+→ Payment / rejection / denial
+→ Receivable update
+→ Reports update
+
+WORKFLOW G — INPATIENT
+
+Admit patient
+→ Assign bed
+→ Nursing assessment
+→ Medication administration simulation
+→ Transfer
+→ Discharge planning
+→ Discharge summary
+→ Release bed
+
+WORKFLOW H — PHARMACY
+
+Prescription/order
+→ Verification
+→ Inventory availability
+→ Dispensing simulation
+→ Batch movement
+→ Stock balance update
+→ Reorder alert if threshold crossed
+
+WORKFLOW I — PATIENT PORTAL
+
+Patient views appointment
+→ Completes intake form
+→ Reviews released result
+→ Sends message
+→ Requests refill
+→ Reviews bill
+
+WORKFLOW J — AI-NATIVE ACTION
+
+Ask patient AI agent
+→ Identify authorised chart information
+→ Show source evidence
+→ Prepare several draft actions
+→ Request approval
+→ Apply individually approved mock actions
+→ Update corresponding records
+→ Record audit entry
+
+WORKFLOW K — NEPHROLOGY EXAMPLE
+
+Open nephrology patient
+→ Review longitudinal lab trends
+→ Review medication and visit history
+→ Check recurring follow-up
+→ Review care plan
+→ Prepare follow-up task
+
+Do not generate autonomous medical treatment recommendations.
+
+==================================================
+10. SYNTHETIC DATA AND STATE MANAGEMENT
+==================================================
+
+Create one coherent synthetic dataset.
+
+Include:
+- Multiple organisations/locations
+- Providers
+- Staff members
+- Patients
+- Appointments
+- Encounters
+- Observations
+- Conditions
+- Allergies
+- Medications
+- Orders
+- Lab results
+- Imaging reports
+- Care plans
+- Referrals
+- Tasks
+- Messages
+- Documents
+- Forms
+- Insurance policies
+- Eligibility responses
+- Authorisations
+- Claims
+- Invoices
+- Payments
+- Beds
+- Admissions
+- Pharmacy inventory
+- AI action proposals
+- Audit events
+
+Provide enough linked sample records for every module to demonstrate its purpose.
+
+All identifiers must be fictional.
+
+Use consistent IDs and relationships.
+
+Never randomly recreate contradictory patient data on each render.
+
+A single synthetic patient may appear across multiple related workflows.
+
+Use one canonical record for each entity.
+
+Example:
+A new appointment should appear in Schedule, Today's Patients and the patient's appointment history.
+
+A new task should appear in Tasks, the relevant patient chart and related work queues.
+
+A signed mock note must retain signature and amendment history.
+
+A bill payment must update the invoice and financial summaries.
+
+Implement client-side persistence where supported.
+
+Prefer a central typed data store and local demo persistence.
+
+Provide:
+"Reset demo data"
+
+Make state persistence and reset behaviour predictable.
+
+No real backend is required.
+
+==================================================
+11. APPLICATION INTERACTIONS
+==================================================
+
+Every visible interactive control must perform a meaningful action.
+
+For example:
+
+Search:
+Returns matching mock records.
+
+Filters:
+Actually update tables and counts.
+
+Sort:
+Changes record ordering.
+
+Tabs:
+Open distinct contextual content.
+
+Buttons:
+Open a real modal, drawer, screen or action.
+
+Forms:
+Validate input and update synthetic state.
+
+Save:
+Persists the synthetic change.
+
+Cancel:
+Discards unsaved changes or cancels an allowed mock workflow.
+
+Notifications:
+Open the related record.
+
+Cards:
+Navigate to filtered source data where appropriate.
+
+Charts:
+Respond to date and grouping controls.
+
+Back navigation:
+Preserve source context and reasonable filter state.
+
+Do not create decorative buttons with no functionality.
+
+For operations that cannot safely be simulated:
+Explain the limitation clearly and provide an appropriate demo preview rather than falsely claiming success.
+
+Avoid excessive success notifications.
+
+Prevent duplicate submissions.
+
+Use believable loading, error, success and empty states.
+
+==================================================
+12. CONSISTENT UI PATTERNS
+==================================================
+
+Create reusable components:
+
+Global App Shell
+Sidebar
+Top Bar
+Patient Banner
+Patient Chart Tabs
+Contextual Subnavigation
+Page Header
+Search
+Filter Bar
+Status Badge
+Data Table
+Calendar
+Metric Card
+Chart
+Timeline
+Task List
+Work Queue
+Form
+Drawer
+Modal
+Confirmation Dialog
+Note Editor
+Conversation Panel
+Record Source Preview
+Notification Centre
+Empty State
+Loading State
+Error State
+Toast
+Role Preview Indicator
+Location Switcher
+
+Avoid making hundreds of unrelated page designs.
+
+Reuse these components throughout the application.
+
+However, each module must retain domain-specific behaviour.
+
+==================================================
+13. DASHBOARD ALIGNMENT AND SCROLLING
+==================================================
+
+The existing EigenH HMS prototype established an important layout requirement.
+
+Today's Patients and My Work Queue should have:
+
+- Aligned top edges
+- Equal visible height on desktop
+- Aligned bottom edges
+- Consistent card padding
+- Independent content scrolling
+- Visible/sticky card headers
+- Appropriate table-header behaviour
+
+Use responsive, viewport-aware heights.
+
+Example:
+height: clamp(360px, 48vh, 540px)
+
+This is only a starting suggestion.
+
+Choose final values based on layout and viewport.
+
+Do not create giant whitespace below shorter tables.
+
+Do not make the whole dashboard unnecessarily long.
+
+On smaller screens, use natural page scrolling where internal scroll regions would harm usability.
+
+Maintain consistent layout at:
+1920×1080
+1440×900
+1366×768
+1024×768
+768×1024
+390×844
+375×812
+
+No horizontal page overflow.
+
+==================================================
+14. STATUS AND SAFETY RULES
+==================================================
+
+Tasks:
+To Do
+In Progress
+Complete
+
+Notes:
+Draft
+Awaiting Signature
+Signed
+Amended
+
+AI actions:
+Draft
+Awaiting Approval
+Executing
+Completed
+Failed
+Cancelled
+
+Use domain-appropriate statuses for:
+Appointments
+Referrals
+Orders
+Results
+Claims
+Payments
+Admissions
+Inventory
+
+Do not reuse one generic status vocabulary for every clinical and financial workflow.
+
+All records should show relevant source, timestamp, owner and review status.
+
+Clearly distinguish:
+- Draft from signed
+- Imported from verified
+- Proposed from executed
+- Simulated from externally transmitted
+- Completed from awaiting approval
+
+No real PHI.
+No actual billing.
+No actual prescriptions.
+No actual clinical recommendations.
+No actual external messaging.
+No claims of HIPAA compliance without a real compliance assessment.
+No production authentication claims.
+
+For future clinical decision support:
+Show evidence and source provenance, uncertainty, clinician review and feedback workflows.
+
+Do not simulate an authoritative autonomous treatment decision engine.
+
+==================================================
+15. TECHNICAL IMPLEMENTATION
+==================================================
+
+Build a maintainable React + TypeScript application.
+
+Prefer Vite where supported by the environment.
+
+Use React Router or equivalent client-side routing.
+
+Use a consistent component and state architecture.
+
+Suggested areas:
+
+src/
+  app/
+  components/
+  layouts/
+  pages/
+  modules/
+  data/
+  types/
+  hooks/
+  services/
+  styles/
+  tests/
+
+Use:
+- Modular feature structure
+- Typed entities
+- Shared mock-data store
+- Reusable forms
+- Consistent validation
+- Predictable state transitions
+- Appropriate error boundaries
+
+Avoid unnecessary dependencies.
+
+Use established charting and date libraries only where they materially improve functionality.
+
+Do not insert secrets or API keys.
+
+Do not request access to real hospital systems.
+
+Do not rely on hidden live APIs.
+
+If a reference design-system package is unavailable, reproduce its documented visual rules without falsely claiming package integration.
+
+Build using the tools genuinely available in Google AI Studio.
+
+==================================================
+16. DEMONSTRATION EXPERIENCE
+==================================================
+
+Make the prototype easy to demonstrate to EigenH leadership.
+
+Include a discreet "Demo scenarios" control.
+
+Provide scenarios such as:
+
+1. Clinician daily workflow
+2. Front Desk arrival and check-in
+3. Patient chart review
+4. Lab result review
+5. Referral lifecycle
+6. Billing and claims
+7. Inpatient bed management
+8. Pharmacy inventory
+9. AI Agent approval workflow
+10. Nephrology follow-up
+11. India ABDM consent workflow
+
+Selecting a scenario should navigate to a relevant starting point with appropriate fictional records.
+
+Do not fill the screen with instructions.
+
+Use a short scenario title, progress indicator and optional contextual guidance.
+
+Users must be free to explore outside a scenario.
+
+==================================================
+17. COVERAGE AND FEATURE COMPLETENESS
+==================================================
+
+All M01–M38 modules must be accounted for.
+
+All D01–D06 screens must be accounted for.
+
+Every catalogue item must have a corresponding discoverable prototype interaction.
+
+Do not substitute one repeated generic placeholder page for every module.
+
+The user must be able to open each major workspace and explore its intended process.
+
+For extensive features, implement representative connected mock workflows rather than pretending production-level integrations exist.
+
+Maintain an internal coverage registry:
+
+Module ID
+Feature name
+Route
+Implemented UI
+Mock interaction
+Connected records
+Test status
+Limitations
+
+Before claiming completion, validate coverage against the original specification.
+
+If any feature cannot be completed in the available build execution, report it explicitly.
+
+Never claim 100% completion when only navigation or static cards exist.
+
+==================================================
+18. IMPLEMENTATION ORDER
+==================================================
+
+Do not attempt to build every component as an unrelated one-off.
+
+First establish:
+1. Design tokens
+2. Application shell
+3. Typed synthetic data model
+4. Shared state management
+5. Reusable interaction components
+6. Global navigation
+7. Patient navigation
+8. Patient-facing shell
+
+Then build the screens.
+
+Suggested implementation order:
+
+Foundation:
+M01, M02, M05
+
+Patient workflows:
+M03, M04, M06–M12
+
+Clinical coordination:
+M13–M20
+
+Patient engagement:
+M21–M24
+
+Revenue and hospital operations:
+M25–M30
+
+Analytics, AI, integrations and administration:
+M31–M38
+
+Detailed screen implementations:
+D01–D06 in their relevant module locations.
+
+These are engineering implementation stages, not an assertion of approved product release phases.
+
+Continue through the full requested coverage.
+
+Preserve functionality already built.
+
+Do not overwrite working components with unrelated redesigns.
+
+==================================================
+19. QUALITY ASSURANCE
+==================================================
+
+Before reporting completion, validate:
+
+A. Navigation
+- All global menu destinations
+- Patient chart tabs
+- Contextual submenus
+- Patient portal
+- Back navigation
+- Deep links
+
+B. Forms
+- Required fields
+- Invalid inputs
+- Save behaviour
+- Cancel behaviour
+- Duplicate prevention
+
+C. Data consistency
+- Dashboard counts
+- Task counts
+- Appointment states
+- Lab statuses
+- Referral progress
+- Claim totals
+- Inventory balances
+- Audit history
+
+D. UI/UX
+- No excessive text
+- No giant unnecessary blank regions
+- No clipped controls
+- No overlapping content
+- Responsive cards
+- Readable tables
+- Consistent spacing
+- Clear visual hierarchy
+
+E. Accessibility
+- Keyboard access
+- Visible focus
+- Form labels
+- Dialog focus management
+- Contrast
+- Screen-reader-friendly structure
+
+F. Technical
+- TypeScript validation
+- Production build
+- Routing validation
+- Functional tests where available
+- No broken imports
+- No runtime errors
+- No uncontrolled console errors
+
+G. Functional scenarios
+- New patient workflow
+- Appointment booking
+- Encounter draft
+- Lab result review
+- Referral closure
+- Task assignment
+- Billing and claim updates
+- Pharmacy stock adjustment
+- AI approval
+- Role switching
+- Facility switching
+- Demo reset
+
+If tests cannot be executed in the current environment, state that clearly instead of inventing passing results.
+
+==================================================
+20. FINAL DESIGN ACCEPTANCE CRITERIA
+==================================================
+
+A successful result must feel like:
+
+A professional healthcare workstation.
+
+Not a landing page.
+
+Not a static Figma mockup.
+
+Not an ordinary CRM dashboard.
+
+Not a massive wall of text.
+
+Not 38 disconnected placeholder cards.
+
+Not a visually impressive application with broken buttons.
+
+The product should be:
+
+Patient-centric.
+Operationally useful.
+Easy to navigate.
+Visually restrained.
+Brand consistent.
+Responsive.
+Accessible.
+Interactive.
+Data consistent.
+Extensible.
+Clearly marked as a prototype.
+
+Every workflow should have a meaningful starting point, an understandable next action and visible feedback.
+
+The UI should help people make progress without searching through unnecessary text.
+
+==================================================
+21. FINAL OUTPUT REQUIREMENTS
+==================================================
+
+Deliver the working application preview.
+
+Also provide:
+
+1. Implemented global navigation.
+2. Implemented patient workspace.
+3. Implemented patient portal.
+4. Module coverage for M01–M38.
+5. Detailed screen coverage for D01–D06.
+6. Working synthetic-data workflows.
+7. Test results actually executed.
+8. Known limitations.
+9. Integration-ready architectural boundaries.
+10. Clear instructions for running and exploring the prototype.
+
+Provide a coverage summary with honest statuses:
+- Functional prototype complete
+- Partially functional
+- Not implemented
+
+No fictional test results.
+
+No false production claims.
+
+==================================================
+22. START THE BUILD
+==================================================
+
+Start by understanding the complete product architecture and the attached specification.
+
+Then build the application.
+
+Do not spend the implementation budget generating verbose planning documents or lengthy explanatory content.
+
+Prioritise working screens, connected workflows and a polished user experience.
+
+Internally organise the work into manageable implementation stages.
+
+Do not stop after the first dashboard.
+
+Do not replace detailed modules with static placeholders simply because the requested application is large.
+
+If an execution limit prevents full implementation, preserve the completed working application, identify exactly which modules remain incomplete, and provide a precise continuation point.
+
+Your design priorities, in order:
+
+1. Correct workflows and patient context.
+2. Working interactions.
+3. Clean, minimal-text interface.
+4. Existing EigenH brand consistency.
+5. Data consistency.
+6. Accessibility.
+7. Responsive behaviour.
+8. Extensible architecture.
+
+FINAL PRODUCT GOAL:
+
+Create a coherent, interactive, patient-centric EigenH AI Native HMS prototype demonstrating how an EHR foundation, hospital operations and AI-assisted actions can work together in one healthcare platform.
+
+BUILD THE APPLICATION NOW.

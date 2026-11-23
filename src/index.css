@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+@theme {
+  --color-eigen-navy: #042C53;
+  --color-eigen-blue: #185FA5;
+  --color-eigen-support: #378ADD;
+  --color-eigen-soft: #85B7EB;
+  --color-eigen-mist: #E6F1FB;
+  --color-eigen-paper: #F1EFE8;
+  --color-eigen-teal: #1D9E75;
+  --color-eigen-success: #0F6E50;
+  --color-eigen-amber: #C97A1B;
+  --color-eigen-danger: #B4321F;
+  --color-eigen-secondary: #5F5D56;
+
+  --font-display: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html, body {
+    font-family: var(--font-sans);
+    color: #0F172A;
+    background-color: #F7F7F5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono, code, kbd {
+    font-family: var(--font-mono);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  *:focus-visible {
+    outline: 2px solid #185FA5;
+    outline-offset: 2px;
+  }
+}
+
+/* Subtle custom scrollbars for internal panels */
+.eigen-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.eigen-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.eigen-scroll::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+.eigen-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Demo Academy V2 active-control highlight, tutorial cursor & click ripple */
+.demo-focus-ring {
+  box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #185FA5, 0 8px 24px -8px rgba(4, 44, 83, 0.28);
+  transition: left 240ms cubic-bezier(0.22, 1, 0.36, 1), top 240ms cubic-bezier(0.22, 1, 0.36, 1), width 240ms cubic-bezier(0.22, 1, 0.36, 1), height 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.demo-focus-ring-practice {
+  box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #C97A1B, 0 0 0 8px rgba(201, 122, 27, 0.18);
+  transition: left 240ms cubic-bezier(0.22, 1, 0.36, 1), top 240ms cubic-bezier(0.22, 1, 0.36, 1), width 240ms cubic-bezier(0.22, 1, 0.36, 1), height 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.demo-focus-ring-ai {
+  box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #1D9E75, 0 0 0 8px rgba(29, 158, 117, 0.18);
+  transition: left 240ms cubic-bezier(0.22, 1, 0.36, 1), top 240ms cubic-bezier(0.22, 1, 0.36, 1), width 240ms cubic-bezier(0.22, 1, 0.36, 1), height 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.demo-cursor-glide {
+  transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+}
+
+@keyframes demoClickRipple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.35);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.9);
+    opacity: 0;
+  }
+}
+
+.demo-click-ripple {
+  animation: demoClickRipple 460ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.demo-ai-autofill-flash {
+  background-color: #E6F1FB !important;
+  border-color: #1D9E75 !important;
+  transition: background-color 220ms ease, border-color 220ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-focus-ring,
+  .demo-focus-ring-practice,
+  .demo-focus-ring-ai,
+  .demo-cursor-glide {
+    transition: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

@@ -1,0 +1,1006 @@
+# EIGENH AI NATIVE EHR
+# PROJECT: CINEMATIC AI DEMO DIRECTOR + AI-FIRST CLINICAL WORKFLOW EXPERIENCE
+# MASTER IMPLEMENTATION INSTRUCTIONS
+
+You are the principal healthcare product architect, senior React/TypeScript engineer, clinical workflow designer, AI systems engineer, and demo experience designer responsible for evolving the EXISTING EigenH AI Native HMS prototype into an exceptional, patient-centric AI Native EHR demonstration.
+
+This is an existing application. DO NOT start from scratch.
+
+The goal is not to create more static screens. The goal is to transform our working application into an intelligent, self-demonstrating clinical workflow experience.
+
+The application should be impressive because it demonstrates meaningful automation, clear responsibility, explainable AI actions, excellent clinical UX, and genuinely connected records—not because it uses decorative effects.
+
+## 1. EXECUTIVE PRODUCT DIRECTION
+
+This direction comes from the latest Ravi and Dheeraj product review.
+
+Important decisions:
+
+1. Focus on building an AI Native EHR first. Full Hospital Management System functionality is not the current priority.
+2. Continue using this existing Google AI Studio application as the primary prototype.
+3. Preserve the clean existing EigenH interface.
+4. Focus on one successful patient journey before expanding into unrelated modules.
+5. Make the clinician experience dramatically simpler.
+6. Reduce manual data entry, clicks, screen switching and duplicated work.
+7. Build two prominent clinician experiences:
+   - Pre-Consultation Summary
+   - Post-Consultation Summary
+8. Introduce appropriately governed AI assistance throughout the patient journey.
+9. Use accurate clinical terminology.
+10. Support roles and clearly defined handoffs.
+11. Make the complete experience demonstrable automatically without the presenter manually navigating and typing through every screen.
+12. Preserve the original underlying clinical records, detailed chart views, and workflows even when creating simpler interfaces.
+
+Our first priority scenario is the SCHEDULED PATIENT JOURNEY.
+
+Walk-in and emergency journeys are not the first-priority demo.
+
+The final product direction is:
+
+"EHR intelligence should prepare information, reduce work, and coordinate the next action while qualified healthcare professionals retain clinical control."
+
+## 2. MOST IMPORTANT NEW FEATURE: EIGENH AI DEMO DIRECTOR
+
+Create a prominent new application feature called:
+
+**EigenH AI Demo Director**
+
+This must behave like an interactive video player controlling the ACTUAL EHR interface.
+
+It is NOT a pre-recorded video.
+
+It is NOT a slide deck.
+
+It is NOT an animated mockup disconnected from the application.
+
+It must be a reproducible, scenario-driven demonstration of the working synthetic application.
+
+### Desired experience
+
+A presenter opens Demo Scenarios, selects "Scheduled Patient Journey", and clicks Play.
+
+The application automatically:
+
+1. Shows the responsible role.
+2. Opens the correct EHR screen.
+3. Highlights the relevant interface control.
+4. Explains the upcoming action.
+5. Performs the actual permitted synthetic workflow operation.
+6. Populates relevant fields.
+7. Shows the resulting state change.
+8. Opens the next connected screen.
+9. Shows the receiving role and handoff.
+10. Continues until the journey is complete.
+
+The presenter should not have to manually type patient details, switch roles, navigate ten tabs, or repeat the same explanations during each demo.
+
+### Demo Director controls
+
+Implement:
+
+- Play
+- Pause
+- Resume
+- Restart
+- Previous Scene
+- Next Scene
+- Playback speed: 0.5×, 1×, 1.5× and 2×
+- Scene navigation
+- Mute/unmute optional narration
+- Captions on/off
+- Exit Demo
+- Replay Scenario
+- Start from selected role
+- Show Full Journey
+- Show Only AI Actions
+- Show Only Human Actions
+- Show Handoffs
+
+Playback speed must adjust demo pacing, not alter timestamps in clinical records.
+
+### Cinematic UI
+
+The player should have:
+
+- A small, attractive floating playback control bar.
+- A horizontal journey progress track.
+- Current scenario title.
+- Current responsible role.
+- Current step number.
+- A short explanatory caption.
+- A visual focus indicator around the active interface control.
+- A subtle simulated cursor when useful.
+- A progress indicator for the complete workflow.
+- A scene/chapter list.
+- Contextual status feedback.
+
+Use gentle transitions only inside the demonstration experience.
+
+Do not introduce distracting blinking elements, constant dashboard motion, unnecessary particles, or decorative animation into normal clinical screens.
+
+Honor reduced-motion accessibility preferences.
+
+### Narration
+
+Provide professional, concise, optional spoken narration where browser support permits.
+
+For example:
+
+"First, the patient schedules a nephrology consultation. EigenH opens a pre-visit preparation workflow and identifies missing information."
+
+Then:
+
+"The Medical Assistant receives the prepared record. Previously submitted information is already available, so only unresolved details require verification."
+
+Then:
+
+"The clinician receives a concise patient summary instead of navigating through multiple records."
+
+Always show synchronized captions.
+
+If text-to-speech is unavailable, continue the demonstration using captions. The demonstration must never fail because narration is unavailable.
+
+Do not generate or distribute video files unless that capability has actually been implemented and verified.
+
+## 3. DEMO DIRECTOR MUST CONTROL REAL APPLICATION STATE
+
+This is a critical architectural requirement.
+
+Do not create fake animated screen recordings.
+
+Do not maintain a separate fake patient record that is unrelated to the EHR.
+
+Do not show buttons being clicked while their actual application operations are bypassed.
+
+Reuse the EXISTING application's domain operations, shared state, selectors, validation and audit events.
+
+Implement a reliable demo orchestration engine.
+
+Recommended modular structure:
+
+- Scenario Registry
+- Scenario Definition
+- Scene Controller
+- Playback State Machine
+- Demo Action Executor
+- Role and Permission Adapter
+- Application Navigation Adapter
+- Synthetic Data Fixture Manager
+- Snapshot / Checkpoint Manager
+- UI Highlight Controller
+- Caption / Narration Controller
+- Scenario Validation Runner
+- Playback Result Reporter
+
+Suggested playback states:
+
+IDLE → PREPARING → PLAYING → PAUSED → COMPLETED
+
+Also support:
+
+FAILED and CANCELED
+
+Each demo scene should declaratively define:
+
+- Scene ID
+- Scenario ID
+- Scene title
+- Role responsible
+- Route or application screen
+- Synthetic patient/encounter context
+- Required preconditions
+- Visual target
+- Narration/caption
+- Action to perform
+- Expected state mutation
+- Expected result
+- Validation assertion
+- Duration or advance condition
+- Recovery behavior
+- Next scene
+
+Use actual operation completion and state validation as the primary conditions for advancing.
+
+Do not depend only on arbitrary timeouts.
+
+Do not create fragile automation that relies solely on DOM coordinates.
+
+Use stable UI identifiers where visual highlighting is necessary.
+
+When an existing application control is involved, the normal user interaction and demo action must call the same underlying validated domain operation.
+
+## 4. DEMO DATA ISOLATION AND REPLAY SAFETY
+
+This feature must be safe and repeatable.
+
+Create a dedicated synthetic demo workspace or isolated state snapshot.
+
+Before starting playback:
+
+- Preserve the current application state.
+- Select or create a deterministic fictional patient.
+- Prepare a consistent set of scenario fixtures.
+- Make sure all required records and permissions exist.
+- Validate the starting state.
+- Enter clearly labeled DEMO MODE.
+
+When replaying:
+
+- Never create accidental duplicate patient records.
+- Never duplicate appointments.
+- Never duplicate medication administrations.
+- Never repeat an irreversible operation.
+- Never overwrite unrelated records.
+- Never corrupt previous demo history.
+- Never silently modify a separate production environment.
+
+Scene seeking and rewind must restore deterministic checkpoints or reconstruct the state safely.
+
+Do not attempt to reverse irreversible actions by blindly applying inverse mutations.
+
+When exiting the demonstration, restore or retain state according to an explicit user choice.
+
+If existing application data is stored in localStorage, inspect the current persistence model and implement isolated, versioned demo snapshots without breaking existing records.
+
+Use deterministic simulation timestamps and clear event chronology.
+
+No real patient data, PHI, real messages, actual prescriptions, or external clinical orders may be involved.
+
+## 5. DEMO SCENARIO LIBRARY
+
+Create a premium "Demo Scenarios" library.
+
+Organize it into:
+
+A. Complete Patient Journeys
+
+B. Role-Based Workflows
+
+C. AI-Native Clinical Capabilities
+
+D. Safety and Exception Scenarios
+
+Each scenario card should show:
+
+- Scenario name
+- Short description
+- Primary role
+- Participating roles
+- Steps / chapters
+- Estimated playback duration, measured from actual scripted pacing
+- Clinical/operational value
+- Whether it is fully tested and ready
+
+Only working and tested scenarios may be labeled Ready.
+
+Unavailable scenarios should remain visibly planned or disabled rather than showing fake playback.
+
+### SCENARIO 01 — THE COMPLETE SCHEDULED PATIENT JOURNEY
+
+This is the flagship demonstration.
+
+Create a realistic synthetic patient with a consistent longitudinal record. Nephrology is a suitable reference specialty, but do not hardcode clinical workflows in ways that prevent other specialties.
+
+Use one patient through the entire scenario.
+
+**Scene 1: Appointment Scheduling**
+
+Role: Scheduler / Front Desk
+
+Automatically:
+
+- Open scheduling.
+- Locate the fictional patient or prepare a synthetic registration when required.
+- Select a relevant service.
+- Select a provider.
+- Show available slots.
+- Book the selected appointment.
+- Display the new calendar event.
+- Generate a synthetic pre-visit information request.
+
+Show the actual updated appointment.
+
+**Scene 2: Pre-Visit Information Collection**
+
+Role: Patient, through a simulated secure intake experience
+
+Automatically demonstrate:
+
+- Opening the pre-visit intake link.
+- Completing missing demographics.
+- Confirming reason for visit.
+- Providing relevant medical history.
+- Adding medication and allergy information.
+- Submitting an illustrative synthetic laboratory report.
+- Submitting an illustrative synthetic medical document.
+- Reviewing submitted information.
+
+The information must populate the same patient record.
+
+**Scene 3: AI Intake Intelligence**
+
+Role: AI Assistant, under staff verification
+
+Demonstrate:
+
+- Processing synthetic submitted information.
+- Extracting supported structured fields.
+- Identifying missing details.
+- Showing original source references.
+- Highlighting uncertain extraction.
+- Preparing a concise pre-visit summary.
+
+Never invent a prior medical history if supporting information is unavailable.
+
+**Scene 4: Front Desk Verification**
+
+Role: Front Desk
+
+Show:
+
+- Scheduled patient arrival.
+- Patient identity confirmation.
+- Registration completeness.
+- Check-in.
+- Handoff to the appropriate clinical-support role.
+
+**Scene 5: Medical Assistant Preparation**
+
+Role: Medical Assistant
+
+Show:
+
+- Assigned patient queue.
+- Intake verification.
+- Available insurance verification status, explicitly simulated.
+- Vitals entry or review.
+- Allergy/medication reconciliation preparation.
+- Missing-information review.
+- Handoff when ready.
+
+Do not automatically assign every insurance or clinical task to the Front Desk.
+
+**Scene 6: Clinical Preparation**
+
+Role: NP / authorized clinical-support staff, according to configured permissions
+
+Show:
+
+- Prepared patient record.
+- Relevant history and observations.
+- Unresolved information.
+- Appropriate clinical handoff to the provider.
+
+**Scene 7: Pre-Consultation Summary**
+
+Role: Clinician
+
+Open one outstanding AI-native clinical screen.
+
+The clinician should immediately understand:
+
+- Who is this patient?
+- Why are they here?
+- What is medically relevant?
+- What changed since the last visit?
+- Which records are available?
+- What risks or critical findings require attention?
+- What is still missing?
+- What should the clinician review first?
+
+Avoid overwhelming the doctor with numerous cards and tabs.
+
+Use concise visual hierarchy, clinically valid trends, and expandable source-linked details.
+
+**Scene 8: Ambient AI Scribe**
+
+Role: Clinician + AI Assistant
+
+Simulate a clinically plausible synthetic consultation conversation.
+
+Display:
+
+- Start Scribe
+- Active simulated consultation
+- Stop Scribe
+- Draft note preparation
+- Review required
+
+Generate a structured SOAP draft from the available synthetic transcript.
+
+Do not claim to have recorded live audio unless actual audio capture occurred.
+
+**Scene 9: AI Clinical Action Composer**
+
+Demonstrate extraction of proposed actions from the consultation:
+
+- Clinical note completion
+- Medication reconciliation or suggested prescription draft
+- Lab order proposal
+- Follow-up plan
+- Patient instruction draft
+- Task or referral proposal where supported
+
+Show clear source evidence and confidence/uncertainty indicators.
+
+Never treat AI-generated suggestions as approved clinical decisions.
+
+**Scene 10: Post-Consultation Review**
+
+Role: Authorized clinician
+
+Show a unified Post-Consultation Summary containing:
+
+- SOAP draft
+- Relevant findings
+- Assessment
+- Plan
+- Proposed medication actions
+- Proposed investigations
+- Follow-up instructions
+
+The clinician reviews and approves individual clinical actions.
+
+In scripted synthetic playback, demonstrate a clearly labeled fictional clinician approval.
+
+In normal EHR mode, require real authorized user interaction for approval and signing.
+
+**Scene 11: Clinical Handoff**
+
+Role: Clinical-support staff / Care Coordinator
+
+The approved instructions automatically populate the correct work queue.
+
+Show the handoff event and its receiving owner.
+
+**Scene 12: Lab Workflow**
+
+Role: Laboratory staff
+
+Demonstrate a synthetic lab order progressing through an appropriate lifecycle.
+
+Show the synthetic result added to the same patient chart.
+
+**Scene 13: Results Review and Follow-Up**
+
+Role: Clinician / Care Coordinator
+
+Demonstrate:
+
+- Result ready for review.
+- Review and acknowledgement.
+- Follow-up action.
+- Appointment scheduling.
+- Simulated reminder status.
+- Longitudinal timeline update.
+
+**Scene 14: Completed Patient Journey**
+
+Display a visual completion summary showing:
+
+- Patient journey timeline
+- Roles involved
+- Verified synthetic operations
+- AI-assisted steps
+- Human-reviewed/approved steps
+- Outstanding tasks, if any
+- Source-linked records
+- Clinical/operational handoff history
+
+Provide a Replay button and links to the actual resulting records.
+
+Do not report the journey as successfully completed unless all required scene assertions pass.
+
+## 6. ROLE-BASED DEMO SCENARIOS
+
+Every major role must have its own independently playable workflow chapter.
+
+When the presenter selects a role, initialize the correct synthetic starting checkpoint automatically.
+
+Do not require the presenter to manually complete previous roles' work first.
+
+### SCENARIO 02 — FRONT DESK AUTOMATION
+
+Demonstrate:
+
+Patient lookup → Registration verification → Appointment booking → Arrival → Check-in → Handoff.
+
+Show how the system reduces repetitive administrative entry.
+
+### SCENARIO 03 — PATIENT PRE-VISIT INTAKE
+
+Demonstrate:
+
+Secure simulated intake link → Demographics → Medical history → Document upload → AI-assisted extraction → Submitted record.
+
+Emphasize minimal repeated data entry.
+
+### SCENARIO 04 — MEDICAL ASSISTANT WORKFLOW
+
+Demonstrate:
+
+Patient assigned → Intake readiness → Insurance status → Vitals → Allergy/medication review → Missing data → Clinical handoff.
+
+### SCENARIO 05 — CLINICIAN AI COPILOT
+
+Demonstrate:
+
+Pre-Consultation Summary → Source-linked chart review → Ambient Scribe → SOAP draft → Clinical action proposals → Review and approval → Post-Consultation Summary.
+
+This should be one of the most polished demonstrations.
+
+### SCENARIO 06 — LABORATORY WORKFLOW
+
+Demonstrate:
+
+Authorized lab order → Lab work queue → Processing → Synthetic result → Clinician review queue → Patient timeline.
+
+### SCENARIO 07 — CARE COORDINATOR WORKFLOW
+
+Demonstrate:
+
+Approved follow-up plan → Assigned tasks → Appointment scheduling → Simulated reminder → Completion tracking.
+
+### SCENARIO 08 — ADMINISTRATOR & INTEROPERABILITY
+
+Demonstrate:
+
+Administrative oversight → Role/facility context → Synthetic patient record → Authorized FHIR R4 export → PII-masked preview → Export validation report.
+
+The administrative export action must remain permission-restricted.
+
+### SCENARIO 09 — CLINICAL SAFETY EXCEPTION
+
+Demonstrate a synthetic abnormal or critical clinical finding.
+
+Show:
+
+- Clinically appropriate warning.
+- Responsible clinician.
+- Review requirement.
+- Acknowledgement.
+- Follow-up task.
+- Auditable outcome.
+
+Do not imply that an AI recommendation is a medical diagnosis or substitute for urgent human response.
+
+### SCENARIO 10 — EXTERNAL DOCUMENT RECONCILIATION
+
+Demonstrate a synthetic outside report with an uncertain patient match.
+
+Show:
+
+- Document intake.
+- Identifying fields.
+- Candidate matching.
+- Uncertainty.
+- Human verification.
+- Source-linked filing into the correct patient record.
+
+Never automatically merge uncertain patient identities.
+
+Prioritize Scenario 01 and the role chapters within it. Implement additional standalone exception scenarios after the core demo is stable.
+
+## 7. HIGH-VALUE AI-NATIVE FEATURES
+
+Implement these as coherent, useful workflows rather than a collection of decorative AI buttons.
+
+### FEATURE A — Patient Context Intelligence
+
+Create a clinician-facing "What Matters Today" section.
+
+Use existing patient information to highlight:
+
+- Current reason for visit
+- Relevant previous events
+- Current medication and allergy context
+- Recent clinical trends
+- Missing clinical information
+- Outstanding actions
+
+Every clinical claim must link to its source when available.
+
+Distinguish recorded fact, derived calculation, simulated AI suggestion, and unavailable data.
+
+### FEATURE B — AI Pre-Visit Readiness
+
+Create a visible readiness summary.
+
+Examples:
+
+- Demographics confirmed
+- Medical history received
+- Allergies reviewed
+- External reports available
+- Clinical intake incomplete
+- Clinician review pending
+
+Do not assign misleading readiness scores without documented criteria.
+
+### FEATURE C — Intelligent Document-to-Chart
+
+For synthetic demonstration documents:
+
+- Extract relevant content.
+- Show source snippets.
+- Match information to supported structured EHR fields.
+- Display confidence or uncertainty honestly.
+- Require verification for ambiguous medical fields.
+- Preserve original synthetic documents.
+- Maintain source provenance.
+
+If live Gemini extraction is not connected, use a clearly labeled deterministic synthetic extraction demonstration.
+
+### FEATURE D — AI Clinical Action Composer
+
+Convert information from reviewed consultation drafts into proposed downstream actions.
+
+Examples:
+
+- Draft laboratory order
+- Draft medication request
+- Draft follow-up task
+- Draft patient instruction
+- Draft referral request
+
+Show proposal → review → approval → completed/failed status.
+
+No autonomous clinician signature or actual prescription transmission.
+
+### FEATURE E — Clinical Safety Radar
+
+Use existing synthetic clinical information to display important safety checks, such as:
+
+- Known allergy conflicts
+- Critical test results
+- Missing confirmation
+- Incomplete reconciliation
+- Overdue follow-up
+- Unreviewed abnormal results
+
+These are clinically meaningful prompts for review, not autonomous diagnoses.
+
+### FEATURE F — Smart Role Handoff
+
+When one authorized workflow step completes, make the next owner's work immediately visible.
+
+Example:
+
+Clinician approves lab order → Lab staff queue updates → Synthetic processing completes → Clinician results inbox updates → Care Coordinator receives authorized follow-up task.
+
+Use real shared-state transitions.
+
+### FEATURE G — Explainable AI Actions
+
+Provide an unobtrusive "Why?" affordance on AI-assisted recommendations.
+
+Show:
+
+- Supporting synthetic record
+- Relevant source
+- Proposed operation
+- Whether source information was verified
+- Human decision required
+- Final outcome
+
+### FEATURE H — Patient Journey Time Machine
+
+Create a visual, chronological journey replay.
+
+The viewer can select a past synthetic event and see:
+
+- Responsible role
+- What happened
+- Which record changed
+- Why it advanced
+- Which role received the next action
+
+This should reuse the same audit/event model as the normal application.
+
+### FEATURE I — Workflow Efficiency Evidence
+
+Show actual measured interaction counts and avoid unsupported productivity claims.
+
+Possible metrics:
+
+- Manual user interactions performed
+- Automated synthetic operations
+- Role handoffs completed
+- Repeated entries avoided
+- Unresolved steps remaining
+
+If comparing against a traditional workflow, clearly identify the baseline and measurement method.
+
+Do not invent "70% faster" or similar savings figures.
+
+## 8. A BETTER CLINICIAN UX
+
+The application should remain a serious, professional clinical system.
+
+The clinician should see two prominent workspaces.
+
+### PRE-CONSULTATION
+
+Purpose: Understand the patient before the consultation.
+
+### POST-CONSULTATION
+
+Purpose: Review, authorize and finalize the clinical work that occurred.
+
+Detailed chart information must remain accessible from these summaries.
+
+Avoid forcing clinicians to repeatedly open:
+
+- History
+- Medications
+- Allergies
+- Labs
+- Orders
+- Notes
+- Tasks
+
+when the relevant information can be meaningfully summarized in one view.
+
+Keep clinical details available through source-linked drill-downs.
+
+Do not remove necessary clinical documentation or safety controls simply to reduce clicks.
+
+## 9. VISUAL DESIGN SYSTEM
+
+Use the existing EigenH design direction.
+
+Reference brand colors:
+
+- Navy: #042C53
+- Blue: #185FA5
+- Green: #1D9E75
+- Neutral: #444441
+- Light background: #F1EFE8
+
+Preserve existing established tokens and clinical severity semantics where applicable.
+
+Design principles:
+
+- Single professional light theme.
+- No dark-mode toggle.
+- Less text, more useful visuals.
+- Compact but readable.
+- Strong clinical information hierarchy.
+- Generous whitespace.
+- Minimal decorative elements.
+- Professional iconography.
+- Meaningful patient timelines.
+- Clinically accurate data visualizations.
+- Accessible form controls and status indicators.
+- Clear distinction between AI suggestions and approved facts.
+
+The Demo Director may use elegant playback transitions, but the underlying clinician interface must remain stable and calm.
+
+## 10. CLINICAL ROLE GOVERNANCE
+
+Implement a synthetic role-capability matrix covering:
+
+- Scheduler / Front Desk
+- Medical Assistant
+- Nurse Practitioner / Clinical Support
+- Clinician / Provider
+- Laboratory Staff
+- Care Coordinator
+- Administrator
+- AI Assistant / Demo Orchestrator
+
+Permissions must reflect the configured role and facility.
+
+Do not assume all nurse practitioners have identical scope or that every healthcare organization uses the same handoff process.
+
+The Demo Orchestrator is a special synthetic presenter mechanism, not a real privileged clinical user.
+
+In scripted playback, clearly label any simulated clinician approval.
+
+In normal application mode:
+
+- Clinician sign-off requires authorization.
+- Clinical order approval requires authorization.
+- Export permissions are enforced.
+- AI proposals cannot silently bypass review.
+- Audit records identify the responsible actor.
+
+## 11. AI MODEL INTEGRATION RULES
+
+Support two clearly differentiated demo capabilities.
+
+### Deterministic Demo Mode
+
+Must always work using fictional, prevalidated data and the existing application state.
+
+It must not depend on external model availability.
+
+AI-like outputs in this mode must be honestly labeled as scripted synthetic demonstrations.
+
+### Optional Model-Assisted Mode
+
+If an appropriate server-side Gemini integration is already configured, support controlled use with synthetic data and structured output validation.
+
+Never expose secrets or API keys in browser code.
+
+Never use real PHI.
+
+Never assume model output is clinically correct.
+
+Verify structured output and restrict executable operations.
+
+Do not introduce external model dependencies that break deterministic demo playback.
+
+## 12. FHIR AND FUTURE MEDPLUM READINESS
+
+Maintain the existing FHIR R4 export direction.
+
+Reuse valid clinical data structures and references.
+
+Keep a clean separation between:
+
+- Application UI
+- Clinical domain operations
+- Synthetic demo fixtures
+- FHIR mapping
+- Optional future external EHR/FHIR adapters
+
+Do not connect Medplum automatically.
+
+Medplum reference deployment and integration are separate engineering decisions.
+
+Do not invent working ABDM, DigiLocker, LIS, imaging, e-prescribing or insurance connections.
+
+## 13. IMPLEMENTATION ORDER
+
+Implement through controlled milestones.
+
+### MILESTONE A — SAFE FOUNDATION
+
+1. Inspect the existing application.
+2. Identify existing modules, routes, state and domain operations.
+3. Identify available role-preview capabilities.
+4. Identify existing Demo Scenarios implementation.
+5. Inventory current synthetic data.
+6. Inspect existing test coverage.
+7. Preserve a recoverable source checkpoint.
+8. Define demo scene and action interfaces.
+
+Do not rebuild unrelated functionality.
+
+### MILESTONE B — WORKING DEMO DIRECTOR
+
+Implement:
+
+- Demo Scenario Library
+- Playback controller
+- Scene registry
+- Shared-state execution
+- Role switching
+- Action highlights
+- Captions
+- Checkpoint replay
+- Demo reset/isolation
+- Scene result validation
+
+### MILESTONE C — FLAGSHIP PATIENT JOURNEY
+
+Build and test Scenario 01 end to end.
+
+Do not begin unrelated features until the complete scheduled-patient journey runs consistently.
+
+### MILESTONE D — ROLE WORKFLOW REPLAYS
+
+Create independently playable role-based chapters using the same underlying journey engine and synthetic fixtures.
+
+### MILESTONE E — AI-NATIVE DIFFERENTIATION
+
+Prioritize:
+
+1. Pre-Visit Readiness
+2. What Matters Today
+3. Unified Clinician Pre-Consultation
+4. Simulated Ambient Scribe
+5. Post-Consultation Review
+6. AI Action Composer
+7. Smart Handoffs
+8. Clinical Safety Radar
+9. Source-linked explanations
+
+### MILESTONE F — EXCEPTION SCENARIOS
+
+Add the clinical safety and external document reconciliation demonstrations only after the flagship journey is stable.
+
+### MILESTONE G — VERIFICATION
+
+Perform real interaction testing.
+
+If the environment cannot finish every milestone in one run, prioritize a fully working flagship scenario over broad but incomplete scaffolding.
+
+Do not silently mark unfinished scenarios as ready.
+
+## 14. TESTING REQUIREMENTS
+
+Create automated tests for:
+
+- Scenario preparation
+- Play, pause and resume
+- Speed changes
+- Scene navigation
+- Role changes
+- Checkpoint restore
+- Replay and reset
+- Patient identity consistency
+- Booking and registration state
+- Clinical role handoffs
+- SOAP draft lifecycle
+- Human approval boundaries
+- Laboratory workflow
+- Results and follow-up
+- Export permission enforcement
+- Unauthorized action rejection
+- Error recovery
+- Invalid inputs
+- Accessibility
+- Desktop and mobile behavior
+
+Run browser tests that verify actual application state changes after each scene.
+
+Test the full flagship scenario at least twice, including replay from a fresh starting state.
+
+Validate that the second run does not duplicate records or actions.
+
+Capture screenshots of representative scenes and final state.
+
+No false success messages.
+
+No dead clicks within completed scenarios.
+
+No silent clinical action authorization.
+
+Do not claim successful testing when tests were not executed.
+
+## 15. FINAL DELIVERABLES
+
+Provide:
+
+1. Architecture summary and files modified.
+2. Working Demo Director entry point.
+3. List of playable scenarios with honest readiness status.
+4. Full Scheduled Patient Journey storyboard.
+5. Role-based chapter map.
+6. Screenshots of the actual demo playback.
+7. AI-native features implemented versus planned.
+8. Working state mutation evidence.
+9. Human/AI action and approval boundary evidence.
+10. Unit and browser test results with actual counts.
+11. Known issues and limitations.
+12. Five-minute executive demo script.
+13. Fifteen-minute detailed product walkthrough.
+14. Clear reset and replay instructions.
+
+## SUCCESS CRITERIA
+
+A presenter must be able to open EigenH AI Native EHR, select the Scheduled Patient Journey and click Play.
+
+Without manually typing patient details or navigating between roles, the demo should visibly show:
+
+Scheduling → Pre-Visit Information → AI Preparation → Front Desk → Medical Assistant → Clinician Pre-Consultation → Ambient Scribe → Post-Consultation Review → Approved Actions → Lab Results → Follow-Up → Completed Patient Timeline.
+
+The presenter must also be able to select a particular role and replay only that role's workflow.
+
+Each chapter must show actual synthetic application operations, not decorative animation.
+
+The same patient and encounter must remain consistent throughout.
+
+The resulting experience should make three things immediately obvious:
+
+1. How an AI Native EHR reduces repetitive clinical and administrative work.
+2. How healthcare staff collaborate through clear role-based handoffs.
+3. How AI provides useful assistance while human professionals retain control over clinical decisions.
+
+Build a clinically credible, visually refined, genuinely interactive demonstration that clearly differentiates EigenH from a traditional form-heavy EHR.
+
+Implement safely inside the existing application. Preserve all working functionality and prioritize a complete, reliable demonstration over the number of features created.
+
+START BY INSPECTING THE EXISTING PROJECT. THEN IMPLEMENT THE WORKING SYSTEM AND VERIFY IT. DO NOT STOP AT PRODUCING A PLAN.
