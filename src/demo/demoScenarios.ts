@@ -24,6 +24,7 @@ import {
   findStaffForRole,
 } from './demoFixtures';
 import type { DemoScenarioDefinition, DemoSceneDefinition, WorkClassification } from './demoTypes';
+import { REGISTRATION_CONSOLIDATION_SCENARIO } from './registrationConsolidationScenario';
 import { buildRoleTutorialScenarios } from './roleWorkflowRegistry';
 
 function switchView(
@@ -1890,10 +1891,11 @@ const EXTERNAL_RECONCILIATION_SCENES: DemoSceneDefinition[] = [
 ];
 
 // ============================================================================
-// MASTER SCENARIO REGISTRY (SCENARIOS 01 – 10)
+// MASTER SCENARIO REGISTRY (SCENARIOS 00 – 10)
 // ============================================================================
 
 export const DEMO_DIRECTOR_SCENARIOS: DemoScenarioDefinition[] = [
+  REGISTRATION_CONSOLIDATION_SCENARIO,
   {
     id: 'demo-01-scheduled-journey',
     number: '01',

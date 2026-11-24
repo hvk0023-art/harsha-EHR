@@ -30,10 +30,18 @@ export interface VoiceOption {
   browserVoiceName?: string;
 }
 
+export interface NeuralTTSModelOption {
+  id: string;
+  label: string;
+  description: string;
+  tier: 'default' | 'comparison';
+}
+
 export interface NeuralTTSStatusResponse {
   neuralConfigured: boolean;
   provider: 'gemini-neural' | 'none';
   model: string;
+  availableModels?: NeuralTTSModelOption[];
   locale: string;
   voices: VoiceOption[];
   cacheEntries?: number;
@@ -51,6 +59,7 @@ export interface NarrationCompletionResult {
   sceneId: string;
   providerUsed: TTSProviderKind;
   voiceId: string;
+  model?: string;
   reason: NarrationCompletionReason;
   completedNaturally: boolean;
   expectedDurationSec: number | null;
@@ -65,6 +74,7 @@ export interface NarrationDiagnosticsEntry {
   sceneId: string;
   providerUsed: TTSProviderKind;
   voiceId: string;
+  model?: string;
   reason: NarrationCompletionReason;
   completedNaturally: boolean;
   expectedDurationSec: number | null;
@@ -81,6 +91,7 @@ export interface CachedAudioClip {
   durationSec: number;
   byteLength: number;
   voiceId: string;
+  model?: string;
   provider: TTSProviderKind;
   createdAt: number;
 }

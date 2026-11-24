@@ -13,9 +13,35 @@ const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT || 3000);
 const IS_PROD = process.env.NODE_ENV === 'production';
-const GEMINI_TTS_MODEL = 'gemini-3.8-flash-lite-tts';
+const DEFAULT_TTS_MODEL = 'gemini-3.8-flash-lite-tts';
 const MAX_TEXT_LENGTH = 1200;
 const MAX_CACHE_ENTRIES = 240;
+
+interface ServerTtsModelSpec {
+  id: 'gemini-3.8-flash-lite-tts' | 'gemini-3.8-flash-tts';
+  label: string;
+  description: string;
+  tier: 'default' | 'comparison';
+}
+
+const GEMINI_TTS_MODELS: readonly ServerTtsModelSpec[] = [
+  {
+    id: 'gemini-3.8-flash-lite-tts',
+    label: 'Flash-Lite TTS (Default)',
+    description: 'Low-latency, cost-optimized Gemini neural voice for standard tutorial walkthroughs.',
+    tier: 'default',
+  },
+  {
+    id: 'gemini-3.8-flash-tts',
+    label: 'Flash TTS (Compare Expressiveness)',
+    description: 'Flagship Gemini neural voice for controlled A/B comparison on the same API key.',
+    tier: 'comparison',
+  },
+] as const;
+
+const ALLOWED_MODEL_MAP = new Map<string, ServerTtsModelSpec>(
+  GEMINI_TTS_MODELS.map((m) => [m.id, m])
+);
 
 interface ServerVoiceSpec {
   id: 'Kore' | 'Charon';
@@ -53,6 +79,7 @@ interface CachedWavEntry {
   durationSec: number;
   createdAt: number;
   voiceId: string;
+  modelId: string;
 }
 
 const wavCache = new Map<string, CachedWavEntry>();
@@ -119,6 +146,7 @@ export function parseWavDurationSeconds(buf: Buffer): { valid: boolean; duration
 }
 
 function cacheKeyForClip(params: {
+  model: string;
   text: string;
   voiceId: string;
   locale: string;
@@ -128,7 +156,7 @@ function cacheKeyForClip(params: {
     .createHash('sha256')
     .update(
       JSON.stringify({
-        model: GEMINI_TTS_MODEL,
+        model: params.model,
         voiceId: params.voiceId,
         locale: params.locale,
         scriptVersion: params.scriptVersion,
@@ -154,14 +182,15 @@ async function sleep(ms: number): Promise<void> {
 async function synthesizeWithGeminiTTS(
   ai: GoogleGenAI,
   text: string,
-  voice: ServerVoiceSpec
+  voice: ServerVoiceSpec,
+  modelId: ServerTtsModelSpec['id']
 ): Promise<Buffer> {
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const response = await ai.models.generateContent({
-        model: GEMINI_TTS_MODEL,
+        model: modelId,
         contents: [
           {
             role: 'user',
@@ -221,7 +250,8 @@ async function startServer() {
     res.json({
       neuralConfigured: configured,
       provider: configured ? 'gemini-neural' : 'none',
-      model: GEMINI_TTS_MODEL,
+      model: DEFAULT_TTS_MODEL,
+      availableModels: configured ? GEMINI_TTS_MODELS : [],
       locale: 'en-US',
       voices: configured
         ? GEMINI_TRAINER_VOICES.map(({ id, label, description, locale }) => ({
@@ -253,6 +283,10 @@ async function startServer() {
 
     const rawText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
     const requestedVoice = typeof req.body?.voiceId === 'string' ? req.body.voiceId.trim() : 'Kore';
+    const requestedModel =
+      typeof req.body?.model === 'string' && req.body.model.trim()
+        ? req.body.model.trim()
+        : DEFAULT_TTS_MODEL;
     const locale = typeof req.body?.locale === 'string' ? req.body.locale.trim() : 'en-US';
     const scriptVersion =
       typeof req.body?.scriptVersion === 'string' ? req.body.scriptVersion.trim().slice(0, 40) : 'v2';
@@ -278,13 +312,28 @@ async function startServer() {
       return;
     }
 
-    const key = cacheKeyForClip({ text: rawText, voiceId: voice.id, locale, scriptVersion });
+    const modelSpec = ALLOWED_MODEL_MAP.get(requestedModel);
+    if (!modelSpec) {
+      res.status(400).json({
+        code: 'INVALID_MODEL',
+        error: 'Requested TTS model is not in the supported Gemini TTS model allowlist.',
+      });
+      return;
+    }
+
+    const key = cacheKeyForClip({
+      model: modelSpec.id,
+      text: rawText,
+      voiceId: voice.id,
+      locale,
+      scriptVersion,
+    });
     const cached = wavCache.get(key);
     if (cached) {
       res.setHeader('Content-Type', 'audio/wav');
       res.setHeader('Cache-Control', 'private, max-age=3600');
       res.setHeader('X-TTS-Provider', 'gemini-neural');
-      res.setHeader('X-TTS-Model', GEMINI_TTS_MODEL);
+      res.setHeader('X-TTS-Model', modelSpec.id);
       res.setHeader('X-TTS-Voice', voice.id);
       res.setHeader('X-TTS-Cache', 'HIT');
       res.setHeader('X-Audio-Duration-Sec', String(cached.durationSec));
@@ -293,19 +342,20 @@ async function startServer() {
     }
 
     try {
-      const wavBuffer = await synthesizeWithGeminiTTS(ai, rawText, voice);
+      const wavBuffer = await synthesizeWithGeminiTTS(ai, rawText, voice, modelSpec.id);
       const parsed = parseWavDurationSeconds(wavBuffer);
       storeInCache(key, {
         wavBuffer,
         durationSec: parsed.durationSec,
         createdAt: Date.now(),
         voiceId: voice.id,
+        modelId: modelSpec.id,
       });
 
       res.setHeader('Content-Type', 'audio/wav');
       res.setHeader('Cache-Control', 'private, max-age=3600');
       res.setHeader('X-TTS-Provider', 'gemini-neural');
-      res.setHeader('X-TTS-Model', GEMINI_TTS_MODEL);
+      res.setHeader('X-TTS-Model', modelSpec.id);
       res.setHeader('X-TTS-Voice', voice.id);
       res.setHeader('X-TTS-Cache', 'MISS');
       res.setHeader('X-Audio-Duration-Sec', String(parsed.durationSec));
@@ -343,7 +393,7 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(
-      `[EigenH Server] Listening on http://0.0.0.0:${PORT} | Gemini Neural TTS (${GEMINI_TTS_MODEL}): ${
+      `[EigenH Server] Listening on http://0.0.0.0:${PORT} | Gemini Neural TTS (${DEFAULT_TTS_MODEL}, compare: gemini-3.8-flash-tts): ${
         isValidApiKey(process.env.GEMINI_API_KEY) ? 'CONFIGURED' : 'NOT CONFIGURED (fallback mode)'
       }`
     );

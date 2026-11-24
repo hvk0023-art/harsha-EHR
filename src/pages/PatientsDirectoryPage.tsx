@@ -4,6 +4,7 @@ import { findDuplicatePatients } from '../state/domainLogic';
 import { canSwitchFacility, filterPatientsForRole } from '../state/permissions';
 import { useAppState } from '../state/AppStateContext';
 import { RegisterPatientModal } from '../components/modals/QuickActionModals';
+import { IntelligentRegistrationModal } from '../components/registration/IntelligentRegistrationModal';
 import {
   EmptyState,
   Modal,
@@ -25,6 +26,7 @@ export const PatientsDirectoryPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
   const [scopeAllFacilities, setScopeAllFacilities] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  const [showIntelligentReg, setShowIntelligentReg] = useState(false);
   const [showDupReview, setShowDupReview] = useState(false);
 
   const allowAllFacilities = canSwitchFacility(state.currentRole);
@@ -69,22 +71,33 @@ export const PatientsDirectoryPage: React.FC = () => {
         title="Patient Directory & Registration"
         subtitle={`M02 · ${filtered.length} patients shown (${scopeAllFacilities ? 'All Facilities' : currentFacility.shortName})`}
         secondaryActions={
-          <button
-            type="button"
-            onClick={() => setShowDupReview(true)}
-            className="px-3 py-1.5 text-xs font-medium text-[#042C53] bg-white border border-slate-300 rounded-md hover:bg-slate-50"
-          >
-            Duplicate Review ({potentialDuplicatePairs.length})
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDupReview(true)}
+              className="px-3 py-1.5 text-xs font-medium text-[#042C53] bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+            >
+              Duplicate Review ({potentialDuplicatePairs.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowRegister(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#042C53] bg-white border border-slate-300 hover:bg-slate-50 rounded-md"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-[#185FA5]" />
+              Quick Register
+            </button>
+          </div>
         }
         primaryAction={
           <button
             type="button"
-            onClick={() => setShowRegister(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-white bg-[#185FA5] hover:bg-[#042C53] rounded-md"
+            data-demo-target="scheduled-registration-btn"
+            onClick={() => setShowIntelligentReg(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-white bg-[#042C53] hover:bg-[#185FA5] rounded-md"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            Register Patient
+            Scheduled Registration
           </button>
         }
       />
@@ -216,6 +229,10 @@ export const PatientsDirectoryPage: React.FC = () => {
       </div>
 
       <RegisterPatientModal open={showRegister} onClose={() => setShowRegister(false)} />
+      <IntelligentRegistrationModal
+        open={showIntelligentReg}
+        onClose={() => setShowIntelligentReg(false)}
+      />
 
       <Modal
         open={showDupReview}

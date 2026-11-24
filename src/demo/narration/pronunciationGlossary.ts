@@ -4,7 +4,7 @@ import type { DemoLearningMode, DemoSceneDefinition } from '../demoTypes';
  * Bump SCRIPT_VERSION whenever narration copy or pronunciation rules change
  * so cached audio clips automatically refresh.
  */
-export const NARRATION_SCRIPT_VERSION = 'v2.2-natural-trainer';
+export const NARRATION_SCRIPT_VERSION = 'v2.3-audited-clinical-trainer';
 
 export interface PronunciationRule {
   pattern: RegExp;
@@ -15,12 +15,28 @@ export interface PronunciationRule {
 /**
  * Authoritative clinical & EHR pronunciation glossary.
  * Applied ONLY when generating spoken speech so visible captions preserve exact clinical notation
- * (e.g., "FHIR R4", "BP 146/88 mmHg", "SpO2 99%", "eGFR 48") while the narrator speaks them naturally.
+ * (e.g., "FHIR R4", "BP 146/88 mmHg", "SpO2 99%", "eGFR 48", "HbA1c 7.4%", "ICD-10", "LOINC")
+ * while the narrator speaks them naturally.
  */
 export const EHR_PRONUNCIATION_GLOSSARY: readonly PronunciationRule[] = [
   { pattern: /\bFHIR\s+R4\b/g, spoken: 'Fire R 4', note: 'HL7 FHIR standard pronunciation' },
   { pattern: /\bHL7\s+FHIR\b/g, spoken: 'H L 7 Fire', note: 'HL7 FHIR standard' },
   { pattern: /\bFHIR\b/g, spoken: 'Fire', note: 'FHIR standard' },
+  { pattern: /\bICD-10-CM\b/g, spoken: 'I C D 10 C M', note: 'US CDC/NCHS ICD-10-CM pronunciation' },
+  { pattern: /\bICD-10\b/g, spoken: 'I C D 10', note: 'WHO ICD-10 pronunciation' },
+  { pattern: /\bICD-11\b/g, spoken: 'I C D 11', note: 'WHO ICD-11 pronunciation' },
+  { pattern: /\bLOINC\b/g, spoken: 'Loink', note: 'Regenstrief LOINC pronunciation' },
+  { pattern: /\bKDIGO\b/g, spoken: 'K D I G O', note: 'Kidney Disease Improving Global Outcomes' },
+  { pattern: /\bRSSDI\b/g, spoken: 'R S S D I', note: 'Research Society for the Study of Diabetes in India' },
+  { pattern: /\bABDM\b/g, spoken: 'A B D M', note: 'Ayushman Bharat Digital Mission' },
+  { pattern: /\bABHA\b/g, spoken: 'A B H A', note: 'Ayushman Bharat Health Account' },
+  { pattern: /\bHbA1c\b/gi, spoken: 'hemoglobin A 1 C', note: 'Glycated hemoglobin lab assay' },
+  { pattern: /\bNKDA\b/g, spoken: 'no known drug allergies', note: 'Expand NKDA' },
+  { pattern: /\bDOB\b/g, spoken: 'date of birth', note: 'Expand DOB' },
+  { pattern: /\bPDFs\b/g, spoken: 'P D Fs', note: 'Plural PDF pronunciation' },
+  { pattern: /\bPDF\b/g, spoken: 'P D F', note: 'PDF pronunciation' },
+  { pattern: /\bLIS\b/g, spoken: 'L I S', note: 'Laboratory Information System' },
+  { pattern: /\b360°/g, spoken: '360', note: 'Pronounce Patient 360 cleanly' },
   { pattern: /\bMRN-(\d+)\b/g, spoken: 'medical record number $1', note: 'Expand MRN prefix' },
   { pattern: /\bREQ-(\d+)\b/g, spoken: 'requisition $1', note: 'Expand lab requisition ID' },
   { pattern: /\b(\d{2,3})\/(\d{2,3})\s*mmHg\b/gi, spoken: '$1 over $2 millimeters of mercury', note: 'Blood pressure with unit' },
@@ -45,6 +61,7 @@ export const EHR_PRONUNCIATION_GLOSSARY: readonly PronunciationRule[] = [
   { pattern: /\bBP\b/g, spoken: 'blood pressure', note: 'Expand BP' },
   { pattern: /\bHR\b/g, spoken: 'heart rate', note: 'Expand HR' },
   { pattern: /\bEST\b/g, spoken: 'Eastern time', note: 'Timezone label' },
+  { pattern: /\bIST\b/g, spoken: 'India Standard Time', note: 'Timezone label' },
   { pattern: /\bPII\b/g, spoken: 'personal identifying information', note: 'Privacy term' },
   { pattern: /\beRx\b/g, spoken: 'electronic prescribing', note: 'Expand eRx' },
   { pattern: /\s*—\s*/g, spoken: ', ', note: 'Convert em-dash to natural brief pause' },

@@ -1,4 +1,4 @@
-import { TODAY_DATE } from '../data/seedData';
+import { INITIAL_APP_STATE, TODAY_DATE } from '../data/seedData';
 import type { AppState, Patient, StaffRole } from '../types/hms';
 
 export const DEMO_PATIENT_ID = 'pat-demo-elena';
@@ -146,8 +146,37 @@ export function findStaffForRole(state: AppState, role: StaffRole, facilityId = 
 export function buildCleanDemoBaseState(sourceState: AppState): AppState {
   const isDemoId = (id: string) => id.includes('-demo-') || id.startsWith('demo-');
 
-  const cleanPatients = sourceState.patients.filter((p) => p.id !== DEMO_PATIENT_ID);
+  // Ensure required canonical facilities, staff, pat-1, and extdoc-1 exist inside the isolated sandbox
+  const existingFacilityIds = new Set(sourceState.facilities.map((f) => f.id));
+  const ensuredFacilities = [
+    ...sourceState.facilities,
+    ...INITIAL_APP_STATE.facilities.filter((f) => !existingFacilityIds.has(f.id)),
+  ];
+
+  const existingStaffIds = new Set(sourceState.staff.map((s) => s.id));
+  const ensuredStaff = [
+    ...sourceState.staff,
+    ...INITIAL_APP_STATE.staff.filter((s) => !existingStaffIds.has(s.id)),
+  ];
+
+  let cleanPatients = sourceState.patients.filter((p) => p.id !== DEMO_PATIENT_ID);
+  const seedPat1 = INITIAL_APP_STATE.patients.find((p) => p.id === 'pat-1');
+  if (seedPat1 && !cleanPatients.some((p) => p.id === 'pat-1')) {
+    cleanPatients = [...cleanPatients, structuredClone(seedPat1)];
+  }
   const demoPatient = createFlagshipDemoPatient();
+
+  const sourceExtDocs = Array.isArray(sourceState.externalDocQueue)
+    ? sourceState.externalDocQueue
+    : [];
+  const hasReconcileDoc = sourceExtDocs.some((d) => d.id === DEMO_IDS.reconcileDoc);
+  const seedReconcileDoc = INITIAL_APP_STATE.externalDocQueue.find(
+    (d) => d.id === DEMO_IDS.reconcileDoc
+  );
+  const ensuredExtDocs =
+    hasReconcileDoc || !seedReconcileDoc
+      ? sourceExtDocs
+      : [structuredClone(seedReconcileDoc), ...sourceExtDocs];
 
   // Baseline historical medication & prior vitals/lab for Elena Alvarez (for trend comparison)
   const baselineMed = {
@@ -204,6 +233,8 @@ export function buildCleanDemoBaseState(sourceState: AppState): AppState {
 
   return {
     ...sourceState,
+    facilities: ensuredFacilities,
+    staff: ensuredStaff,
     currentPortal: 'staff',
     currentFacilityId: DEMO_FACILITY_ID,
     unsavedDirty: false,
@@ -239,7 +270,7 @@ export function buildCleanDemoBaseState(sourceState: AppState): AppState {
     scribeSessions: (sourceState.scribeSessions || []).filter(
       (s) => !isDemoId(s.id) && s.patientId !== DEMO_PATIENT_ID
     ),
-    externalDocQueue: (sourceState.externalDocQueue || []).map((d) =>
+    externalDocQueue: ensuredExtDocs.map((d) =>
       d.id === DEMO_IDS.reconcileDoc
         ? {
             ...d,

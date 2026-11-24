@@ -1,23 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Award,
+  Calendar,
   Captions,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Compass,
+  FileText,
   Hand,
   ListOrdered,
   Pause,
   Play,
   RefreshCw,
   RotateCcw,
+  ShieldCheck,
   SkipBack,
   SkipForward,
   SlidersHorizontal,
   Sparkles,
   Square,
+  UserCheck,
   Volume2,
   VolumeX,
   X,
@@ -28,6 +32,8 @@ import type { DemoLearningMode, DemoSpeed, WorkClassification } from '../../demo
 import type { NarrationRate } from '../../demo/narration/narrationTypes';
 import { resolveDemoSelector } from '../../demo/visibleTypingController';
 import { useAppState } from '../../state/AppStateContext';
+import { findRegisteredAarav } from '../../demo/registrationConsolidationScenario';
+import { buildRegistrationDemoCompletionSummary } from '../../state/registrationIntelligence';
 import { Modal, StatusBadge } from '../ui/Primitives';
 
 const SPEEDS: DemoSpeed[] = [0.5, 1, 1.5, 2];
@@ -94,9 +100,11 @@ export const DemoDirectorOverlay: React.FC = () => {
     ttsStatus,
     availableVoices,
     selectedVoiceId,
+    selectedTtsModel,
     narrationRate,
     isPreviewingVoice,
     setSelectedVoiceId,
+    setSelectedTtsModel,
     setNarrationRate,
     previewVoice,
     stopPreview,
@@ -119,7 +127,8 @@ export const DemoDirectorOverlay: React.FC = () => {
     exitDemo,
   } = useDemoDirector();
 
-  const { openPatient } = useAppState();
+  const { state, openPatient } = useAppState();
+  const barRef = useRef<HTMLElement | null>(null);
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
@@ -129,6 +138,40 @@ export const DemoDirectorOverlay: React.FC = () => {
     width: number;
     height: number;
   } | null>(null);
+
+  const showFloatingBar = Boolean(isDemoMode && activeScenario && activeScene && !summaryOpen && !exitConfirmOpen);
+
+  // Dynamically measure floating Demo Director bar height and publish --demo-bar-clearance
+  // so open modals (e.g. Intelligent Scheduled Registration) always stay completely above it.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!showFloatingBar) {
+      root.style.setProperty('--demo-bar-clearance', '0px');
+      return;
+    }
+
+    const updateClearance = () => {
+      const el = barRef.current;
+      if (!el) {
+        root.style.setProperty('--demo-bar-clearance', '0px');
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const clearance = Math.ceil(rect.height) + 16;
+      root.style.setProperty('--demo-bar-clearance', `${clearance}px`);
+    };
+
+    updateClearance();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateClearance) : null;
+    if (ro && barRef.current) ro.observe(barRef.current);
+    window.addEventListener('resize', updateClearance);
+
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', updateClearance);
+      root.style.setProperty('--demo-bar-clearance', '0px');
+    };
+  }, [showFloatingBar, minimized, playback.captionsEnabled, playback.errorMessage, playback.activeSceneIndex]);
 
   // Determine exact DOM target to highlight right now
   const activeTargetToken =
@@ -156,16 +199,27 @@ export const DemoDirectorOverlay: React.FC = () => {
         setHighlightRect(null);
         return;
       }
-      const isModalChild = Boolean(el.closest('[role="dialog"]'));
+      const modalBody = el.closest('[data-modal-body="true"]') as HTMLElement | null;
+      const isModalChild = Boolean(modalBody || el.closest('[role="dialog"]'));
       const isTopbarTarget =
         activeTargetToken === 'role-preview-switcher' || activeTargetToken === 'facility-switcher';
-      const minTop = isModalChild || isTopbarTarget ? 4 : activeScene?.patientId ? 60 : 56;
-      const maxBottom = window.innerHeight - (minimized ? 68 : 146);
+      const barTop = barRef.current
+        ? Math.floor(barRef.current.getBoundingClientRect().top) - 6
+        : window.innerHeight - (minimized ? 68 : 156);
+      const minTop = modalBody
+        ? Math.max(4, modalBody.getBoundingClientRect().top)
+        : isModalChild || isTopbarTarget
+        ? 4
+        : activeScene?.patientId
+        ? 60
+        : 56;
+      const maxBottom = modalBody
+        ? Math.min(barTop, modalBody.getBoundingClientRect().bottom)
+        : isTopbarTarget
+        ? window.innerHeight - 8
+        : barTop;
       const clampedTop = Math.max(minTop, rect.top - 4);
-      const clampedBottom =
-        isModalChild || isTopbarTarget
-          ? Math.min(window.innerHeight - 8, rect.bottom + 4)
-          : Math.min(maxBottom, rect.bottom + 4);
+      const clampedBottom = Math.min(maxBottom, rect.bottom + 4);
       const clampedHeight = clampedBottom - clampedTop;
       if (clampedHeight < 18) {
         setHighlightRect(null);
@@ -228,6 +282,14 @@ export const DemoDirectorOverlay: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [chaptersOpen, exitConfirmOpen, isDemoMode, openExitConfirm, pause, playOrResume, playback.learningMode, playback.status, summaryOpen, voiceSettingsOpen]);
 
+  const isRegistrationDemo = activeScenario?.id === 'demo-00-registration-consolidation';
+  const registrationSummary = useMemo(() => {
+    if (!isDemoMode || !isRegistrationDemo) return null;
+    const livePatientId =
+      findRegisteredAarav(state)?.id || activeScenario?.patientId || 'pat-demo-aarav';
+    return buildRegistrationDemoCompletionSummary(state, livePatientId);
+  }, [activeScenario?.patientId, isDemoMode, isRegistrationDemo, state]);
+
   if (!isDemoMode || !activeScenario || !activeScene) return null;
 
   const totalScenes = activeScenario.scenes.length;
@@ -257,17 +319,19 @@ export const DemoDirectorOverlay: React.FC = () => {
     : activeCaptionText || activeScene.caption;
 
   const selectedVoiceObj = availableVoices.find((v) => v.id === selectedVoiceId) || availableVoices[0];
+  const effectiveModelId = selectedTtsModel || ttsStatus.model || 'gemini-3.8-flash-lite-tts';
   const providerSummaryLabel =
     activeProvider === 'gemini-neural'
-      ? `Gemini Neural TTS (${ttsStatus.model})`
+      ? `Gemini Neural TTS (${effectiveModelId})`
       : activeProvider === 'browser-fallback'
       ? 'Browser Voice Fallback'
       : 'Captions Only (Voice Unavailable)';
 
+
   const narrationStatusLabel =
     narrationStatus === 'loading'
       ? 'Loading audio…'
-      : narrationStatus === 'speaking'
+      : narrationStatus === 'playing'
       ? 'Speaking'
       : narrationStatus === 'paused'
       ? 'Voice Paused'
@@ -400,10 +464,18 @@ export const DemoDirectorOverlay: React.FC = () => {
                       : 'bg-amber-50 text-[#9A5B10] border border-amber-200'
                   }`}
                 >
-                  {activeProvider === 'gemini-neural' ? 'Neural Voice Active' : 'Browser Fallback'}
+                  {activeProvider === 'gemini-neural'
+                    ? 'Model-Generated Audio'
+                    : 'Browser Fallback'}
                 </span>
               </div>
               <div className="text-[11px] font-medium text-[#042C53]">{providerSummaryLabel}</div>
+              {activeProvider === 'gemini-neural' && (
+                <p className="text-[10px] text-[#5F5D56] leading-snug">
+                  Live server-side <code className="font-mono text-[#042C53]">@google/genai</code>{' '}
+                  audio synthesis (cached per sentence; never truncates active speech).
+                </p>
+              )}
               {!ttsStatus.neuralConfigured && (
                 <p className="text-[10px] text-[#5F5D56] leading-snug">
                   Gemini neural voice is ready on the server once{' '}
@@ -412,6 +484,49 @@ export const DemoDirectorOverlay: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {/* Controlled Flash-Lite vs Flash TTS Model Comparison (Same API Key) */}
+            {activeProvider === 'gemini-neural' &&
+              ttsStatus.availableModels &&
+              ttsStatus.availableModels.length > 1 && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[#5F5D56]">
+                      Gemini TTS Model (A/B Compare)
+                    </span>
+                    <span className="text-[10px] text-[#0F6E50] font-medium">Same API Key</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {ttsStatus.availableModels.map((m) => {
+                      const active = effectiveModelId === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          data-demo-tts-model={m.id}
+                          onClick={() => setSelectedTtsModel(m.id)}
+                          className={`px-2 py-1.5 rounded border text-left transition-colors ${
+                            active
+                              ? 'bg-[#042C53] text-white border-[#042C53]'
+                              : 'bg-white text-[#042C53] border-slate-200 hover:border-[#185FA5]'
+                          }`}
+                        >
+                          <div className="text-[10px] font-semibold leading-tight">
+                            {m.tier === 'default' ? 'Flash-Lite (Default)' : 'Flash TTS (Compare)'}
+                          </div>
+                          <div
+                            className={`text-[9px] font-mono mt-0.5 truncate ${
+                              active ? 'text-[#85B7EB]' : 'text-[#5F5D56]'
+                            }`}
+                          >
+                            {m.id}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
             {/* Voice Selection (only genuinely available voices) */}
             <div className="space-y-1">
@@ -481,7 +596,7 @@ export const DemoDirectorOverlay: React.FC = () => {
                   if (isPreviewingVoice) {
                     stopPreview();
                   } else {
-                    void previewVoice(selectedVoiceObj?.id);
+                    void previewVoice(selectedVoiceObj?.id, effectiveModelId);
                   }
                 }}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[#185FA5] text-[#185FA5] hover:bg-[#E6F1FB] font-medium text-[11px] disabled:opacity-40"
@@ -586,9 +701,10 @@ export const DemoDirectorOverlay: React.FC = () => {
       {/* Non-Obscuring Floating EHR Trainer Console (hidden cleanly while Summary/Exit modal is active) */}
       {!summaryOpen && !exitConfirmOpen && (
       <aside
+        ref={barRef}
         aria-label="EigenH Guided Demo Academy Trainer Console"
         data-demo-director-bar="true"
-        className="fixed bottom-2.5 left-1/2 -translate-x-1/2 z-[66] w-[calc(100%-1.25rem)] max-w-5xl bg-white/95 backdrop-blur border border-slate-300 rounded-xl shadow-xl px-3.5 py-2 text-xs space-y-1.5"
+        className="fixed bottom-2 left-1/2 -translate-x-1/2 z-[66] w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)] max-w-5xl bg-white/95 backdrop-blur border border-slate-300 rounded-xl shadow-xl px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs space-y-1 sm:space-y-1.5 max-h-[42dvh] overflow-y-auto"
       >
         {/* Row 1: Mode, Role/Screen, Step Counter, Work Classification, Status & Exit */}
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -743,7 +859,18 @@ export const DemoDirectorOverlay: React.FC = () => {
                 <SkipBack className="w-3.5 h-3.5" />
               </button>
 
-              {isPracticeWaiting ? (
+              {playback.status === 'FAILED' ? (
+                <button
+                  type="button"
+                  onClick={replayCurrentStep}
+                  data-demo-retry-step="true"
+                  aria-label="Retry failed step"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#B4321F] hover:bg-[#8E2517] text-white font-semibold rounded"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Retry Step
+                </button>
+              ) : isPracticeWaiting ? (
                 <button
                   type="button"
                   onClick={showMeCurrentStep}
@@ -938,16 +1065,290 @@ export const DemoDirectorOverlay: React.FC = () => {
       </aside>
       )}
 
-      {/* Consolidated Completion Summary & Interactive Role Journey Timeline Modal */}
+      {/* Consolidated Completion Summary Modal (Scenario-Specific for Registration Demo; Unchanged 8-Role Journey for Elena Alvarez) */}
       <Modal
         open={summaryOpen && !exitConfirmOpen && playback.status === 'COMPLETED'}
         onClose={() => setSummaryOpen(false)}
         title={`Completed: ${activeScenario.title}`}
-        subtitle="Verified real-state walkthrough summary, AI vs human approval boundaries, and clickable 8-role journey timeline"
+        subtitle={
+          isRegistrationDemo && registrationSummary
+            ? `Bengaluru Hub pre-visit registration & data consolidation summary · ${registrationSummary.patientName} (${registrationSummary.mrn})`
+            : 'Verified real-state walkthrough summary, AI vs human approval boundaries, and clickable 8-role journey timeline'
+        }
         maxWidth="max-w-4xl"
         zIndexClass="z-[75]"
       >
-        <div data-demo-summary-modal="true" className="space-y-4 text-xs">
+        {isRegistrationDemo && registrationSummary ? (
+          <div data-demo-summary-modal="true" data-demo-summary-kind="registration-bengaluru" className="space-y-4 text-xs">
+            {/* Registration-Specific Measured Evidence Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+                <div className="text-[11px] text-[#5F5D56]">Verified Chapters</div>
+                <div className="text-lg font-bold font-mono tabular-nums text-[#0F6E50]">
+                  {efficiencySummary.passedAssertions}/{efficiencySummary.totalScenesExecuted}
+                </div>
+              </div>
+              <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+                <div className="text-[11px] text-[#5F5D56]">Verified Profile Fields</div>
+                <div className="text-lg font-bold font-mono tabular-nums text-[#042C53]">
+                  {registrationSummary.verifiedFields.length}
+                </div>
+                <div className="text-[10px] text-[#5F5D56] truncate">
+                  By {registrationSummary.verifiedBy}
+                </div>
+              </div>
+              <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+                <div className="text-[11px] text-[#5F5D56]">Extracted Data Reviewed</div>
+                <div className="text-lg font-bold font-mono tabular-nums text-[#185FA5]">
+                  {registrationSummary.acceptedExtractedFields.length} / {registrationSummary.rejectedExtractedFields.length}
+                </div>
+                <div className="text-[10px] text-[#5F5D56]">Accepted / Rejected</div>
+              </div>
+              <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+                <div className="text-[11px] text-[#5F5D56]">Source Docs / Encounters</div>
+                <div className="text-lg font-bold font-mono tabular-nums text-[#042C53]">
+                  {registrationSummary.sourceDocuments.length} / {registrationSummary.encountersCreated}
+                </div>
+                <div className="text-[10px] text-[#0F6E50]">Stops cleanly pre-visit</div>
+              </div>
+            </div>
+
+            {/* Patient Identity & Next-Visit Readiness Banner */}
+            <div className="p-3 bg-[#E6F1FB]/60 border border-[#85B7EB] rounded-lg flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-[#0F6E50]" />
+                  <span className="font-semibold text-[#042C53] text-sm">
+                    {registrationSummary.patientName} ({registrationSummary.mrn})
+                  </span>
+                  <StatusBadge label={registrationSummary.registrationStatus} tone="success" />
+                  <StatusBadge label={registrationSummary.readinessLabel} tone="blue" />
+                </div>
+                <div className="text-[11px] text-[#444441] font-mono">
+                  DOB {registrationSummary.dob} · Phone {registrationSummary.phone} ·{' '}
+                  {registrationSummary.facilityName}
+                </div>
+                <div className="text-[11px] text-[#5F5D56]">
+                  Verified by <strong className="text-[#042C53]">{registrationSummary.verifiedBy}</strong>{' '}
+                  ({registrationSummary.verifiedAt}) · Duplicate guard blocked name-only merge with distinct patient{' '}
+                  <span className="font-mono">MRN-208612</span>.
+                </div>
+              </div>
+              {registrationSummary.nextAppointment && (
+                <div className="bg-white border border-slate-200 rounded-md px-3 py-2 text-[11px] min-w-[220px]">
+                  <div className="font-semibold text-[#042C53] flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-[#185FA5]" />
+                    Next Scheduled Visit Ready
+                  </div>
+                  <div className="font-mono text-[#042C53] mt-0.5">
+                    {registrationSummary.nextAppointment.date} · {registrationSummary.nextAppointment.startTime} IST
+                  </div>
+                  <div className="text-[#5F5D56]">{registrationSummary.nextAppointment.providerName}</div>
+                </div>
+              )}
+            </div>
+
+            {/* 2-Column Detailed Registration & Consolidation Breakdown */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Left: Verified Fields + Accepted/Rejected Extracted Data */}
+              <div className="border border-slate-200 rounded-md overflow-hidden bg-white">
+                <div className="px-3 py-2 bg-[#042C53] text-white font-semibold flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#85B7EB]" />
+                    Verified Fields & Consolidated Extraction
+                  </span>
+                  <span className="text-[10px] text-[#85B7EB]">Human Verified</span>
+                </div>
+                <div className="p-3 space-y-2.5 max-h-56 overflow-y-auto eigen-scroll">
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-[#5F5D56] mb-1">
+                      Verified Registration Demographics ({registrationSummary.verifiedFields.length})
+                    </div>
+                    <div className="space-y-1">
+                      {registrationSummary.verifiedFields.map((vf) => (
+                        <div key={vf.field} className="flex justify-between gap-2 text-[11px]">
+                          <span className="text-[#5F5D56]">{vf.field}</span>
+                          <span className="font-medium text-[#042C53] text-right truncate max-w-[230px]">
+                            {vf.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-[#0F6E50] mb-1">
+                      Accepted Extracted Data ({registrationSummary.acceptedExtractedFields.length})
+                    </div>
+                    {registrationSummary.acceptedExtractedFields.length === 0 ? (
+                      <p className="text-[11px] text-[#5F5D56]">No extracted fields accepted yet.</p>
+                    ) : (
+                      <ul className="space-y-1 text-[11px] text-[#042C53]">
+                        {registrationSummary.acceptedExtractedFields.map((f) => (
+                          <li key={f.label} className="flex items-start gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#0F6E50] shrink-0 mt-0.5" />
+                            <span>
+                              <strong>{f.label}:</strong> {f.value}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-[#B4321F] mb-1">
+                      Rejected Uncertain Items ({registrationSummary.rejectedExtractedFields.length})
+                    </div>
+                    {registrationSummary.rejectedExtractedFields.length === 0 ? (
+                      <p className="text-[11px] text-[#5F5D56]">No extracted items rejected.</p>
+                    ) : (
+                      <ul className="space-y-1 text-[11px] text-[#5F5D56]">
+                        {registrationSummary.rejectedExtractedFields.map((f) => (
+                          <li key={f.label} className="flex items-start gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-[#C97A1B] shrink-0 mt-0.5" />
+                            <span>
+                              <strong className="text-[#042C53]">{f.label}</strong> — excluded from chart ({f.reason})
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Consolidated Source Documents + Outstanding Pre-Visit Information */}
+              <div className="border border-slate-200 rounded-md overflow-hidden bg-white">
+                <div className="px-3 py-2 bg-[#F7F7F5] border-b border-slate-200 font-semibold text-[#042C53] flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-[#185FA5]" />
+                    Source Documents & Outstanding Pre-Visit Items
+                  </span>
+                </div>
+                <div className="p-3 space-y-2.5 max-h-56 overflow-y-auto eigen-scroll">
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-[#5F5D56] mb-1">
+                      Consolidated Source Documents ({registrationSummary.sourceDocuments.length})
+                    </div>
+                    {registrationSummary.sourceDocuments.length === 0 ? (
+                      <p className="text-[11px] text-[#5F5D56]">No source documents consolidated yet.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {registrationSummary.sourceDocuments.map((doc) => (
+                          <div key={doc.id} className="p-2 bg-[#F7F7F5] border border-slate-200 rounded">
+                            <div className="font-medium text-[#042C53] text-[11px]">{doc.title}</div>
+                            <div className="text-[10px] text-[#5F5D56] mt-0.5">
+                              {doc.category} · {doc.source} · {doc.date}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-[#9A5B10] mb-1">
+                      Outstanding Information Before Clinical Visit ({registrationSummary.outstandingItems.length})
+                    </div>
+                    <ul className="space-y-1.5 text-[11px] text-[#444441]">
+                      {registrationSummary.outstandingItems.map((item) => (
+                        <li key={item} className="flex items-start gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-[#C97A1B] shrink-0 mt-0.5" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Verified Step-by-Step Assertions */}
+            <div className="border border-slate-200 rounded-md overflow-hidden">
+              <div className="px-3 py-2 bg-[#F7F7F5] border-b border-slate-200 font-semibold text-[#042C53]">
+                Verified Chapter Assertions (10-Chapter Registration & Consolidation Run)
+              </div>
+              <div className="max-h-36 overflow-y-auto eigen-scroll divide-y divide-slate-100">
+                {playback.assertionLogs.map((log) => (
+                  <div key={log.sceneId} className="px-3 py-1.5 flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-[#042C53]">
+                        {String(log.sceneNumber).padStart(2, '0')}. {log.title}{' '}
+                        <span className="text-[11px] font-normal text-[#5F5D56]">· {log.role}</span>
+                      </div>
+                      <div className="text-[11px] text-[#5F5D56]">{log.detail}</div>
+                    </div>
+                    <StatusBadge label={log.passed ? 'Verified' : 'Failed'} tone={log.passed ? 'success' : 'danger'} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    openPatient(registrationSummary.patientId, 'overview');
+                    setSummaryOpen(false);
+                  }}
+                  className="px-2.5 py-1.5 border border-slate-300 text-[#042C53] rounded hover:bg-slate-50"
+                >
+                  Open Patient 360° Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openPatient(registrationSummary.patientId, 'data-inbox');
+                    setSummaryOpen(false);
+                  }}
+                  className="px-2.5 py-1.5 border border-slate-300 text-[#042C53] rounded hover:bg-slate-50"
+                >
+                  Inspect Data Inbox
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openPatient(registrationSummary.patientId, 'knowledge-graph');
+                    setSummaryOpen(false);
+                  }}
+                  className="px-2.5 py-1.5 border border-slate-300 text-[#042C53] rounded hover:bg-slate-50"
+                >
+                  Inspect Knowledge Graph
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSummaryOpen(false);
+                    startScenario(activeScenario.id, { learningMode: 'practice', autoPlay: false });
+                  }}
+                  className="px-2.5 py-1.5 border border-amber-300 bg-amber-50 text-[#9A5B10] font-medium rounded hover:bg-amber-100"
+                >
+                  Practice This Workflow Yourself
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={restart}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#185FA5] hover:bg-[#042C53] text-white font-medium rounded-md"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Replay Tutorial
+                </button>
+                <button
+                  type="button"
+                  onClick={openExitConfirm}
+                  className="px-3 py-1.5 border border-slate-300 text-[#042C53] font-medium rounded-md hover:bg-slate-50"
+                >
+                  Exit Academy
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+        <div data-demo-summary-modal="true" data-demo-summary-kind="clinical-journey" className="space-y-4 text-xs">
           {/* Measured Workflow Evidence Grid (No Fabricated Percentages) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
@@ -1099,6 +1500,7 @@ export const DemoDirectorOverlay: React.FC = () => {
             </div>
           </div>
         </div>
+        )}
       </Modal>
 
       {/* Exit Demo Restore vs Retain Confirmation Modal */}

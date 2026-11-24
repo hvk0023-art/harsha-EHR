@@ -38,7 +38,12 @@ export const DemoScenariosPage: React.FC = () => {
   const [activeTrack, setActiveTrack] = useState<'roles' | 'journey' | 'exceptions'>('roles');
   const [startRole, setStartRole] = useState<StaffRole>('Front Desk');
 
-  const flagship = DEMO_DIRECTOR_SCENARIOS[0];
+  const registrationDemo =
+    getScenarioById('demo-00-registration-consolidation') || DEMO_DIRECTOR_SCENARIOS[0];
+  const registrationDurationSec = getEstimatedDurationSeconds(registrationDemo);
+
+  const flagship =
+    getScenarioById('demo-01-scheduled-journey') || DEMO_DIRECTOR_SCENARIOS[1] || DEMO_DIRECTOR_SCENARIOS[0];
   const flagshipDurationSec = getEstimatedDurationSeconds(flagship);
   const safetyScenarios = DEMO_DIRECTOR_SCENARIOS.filter(
     (s) => s.category === 'Safety and Exception Scenarios'
@@ -51,7 +56,116 @@ export const DemoScenariosPage: React.FC = () => {
         subtitle="Learn every clinical workflow by watching the EHR demonstrate itself — live cursor guidance, visible data entry, AI-prepared review gates, and interactive practice (synthetic data only)"
       />
 
-      {/* Two Prominent Primary Entry Points (Ravi & Dheeraj Product Direction) */}
+      {/* FEATURED NEW DEMO: Patient Registration & Data Consolidation (India-First Pre-Visit Intelligence) */}
+      <section
+        data-demo-target="entry-registration-consolidation"
+        className="bg-white border-2 border-[#185FA5] border-t-4 border-t-[#0F6E50] rounded-lg p-5 space-y-4 shadow-xs"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-2 max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-[#0F6E50] text-white rounded">
+                <Sparkles className="w-3 h-3" />
+                Featured Pre-Visit Walkthrough · India-First EHR
+              </span>
+              <StatusBadge label="Verified working" tone="success" />
+              <span className="text-[11px] font-mono tabular-nums text-[#5F5D56]">
+                {registrationDemo.scenes.length} chapters · ~{registrationDurationSec}s @ 1x · Bengaluru Hub
+              </span>
+            </div>
+            <h2 className="text-lg font-semibold text-[#042C53] tracking-tight">
+              {registrationDemo.title}
+            </h2>
+            <p className="text-xs font-medium text-[#185FA5]">
+              {registrationDemo.subtitle}
+            </p>
+            <p className="text-xs text-[#444441] leading-relaxed">
+              {registrationDemo.description}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              data-demo-target="watch-registration-consolidation-btn"
+              onClick={() =>
+                startScenario(registrationDemo.id, { autoPlay: true, learningMode: 'watch' })
+              }
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#042C53] hover:bg-[#185FA5] text-white font-semibold rounded-md transition-colors"
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              Watch Demo (10 Chapters)
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                startScenario(registrationDemo.id, { autoPlay: false, learningMode: 'practice' })
+              }
+              className="inline-flex items-center gap-1 px-3 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-[#9A5B10] font-medium rounded-md"
+            >
+              <Hand className="w-3.5 h-3.5" />
+              Guided Practice
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                startScenario(registrationDemo.id, { autoPlay: true, learningMode: 'executive' })
+              }
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#1D9E75] hover:bg-[#0F6E50] text-white font-medium rounded-md transition-colors"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Executive Demo
+            </button>
+          </div>
+        </div>
+
+        {/* 10-Chapter Quick Jump Strip */}
+        <div className="pt-3 border-t border-slate-100">
+          <div className="text-[11px] font-semibold text-[#5F5D56] mb-2">
+            10-Chapter Pre-Visit Storyboard (stops cleanly at Registration Complete — click any chapter to jump):
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {registrationDemo.scenes.map((scene, idx) => (
+              <button
+                key={scene.sceneId}
+                type="button"
+                onClick={() =>
+                  startScenario(registrationDemo.id, {
+                    startIndex: idx,
+                    autoPlay: false,
+                    learningMode: 'watch',
+                  })
+                }
+                className="text-left p-2 rounded border border-slate-200 hover:border-[#185FA5] hover:bg-[#E6F1FB]/40 transition-colors bg-[#F7F7F5]"
+              >
+                <div className="flex items-center justify-between text-[10px] font-mono text-[#5F5D56]">
+                  <span>CH {String(scene.sceneNumber).padStart(2, '0')}</span>
+                  <span
+                    className={
+                      scene.actorKind === 'ai'
+                        ? 'text-[#0F6E50] font-semibold'
+                        : scene.actorKind === 'handoff'
+                        ? 'text-[#185FA5] font-semibold'
+                        : 'text-[#5F5D56]'
+                    }
+                  >
+                    {scene.actorKind === 'ai'
+                      ? 'AI'
+                      : scene.actorKind === 'handoff'
+                      ? 'Ready'
+                      : 'Human'}
+                  </span>
+                </div>
+                <div className="text-[11px] font-semibold text-[#042C53] line-clamp-2 mt-0.5 leading-snug">
+                  {scene.title}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Two Prominent Primary Entry Points (Existing Complete Journey & Role Tutorials) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Entry Point 1: Watch Complete Patient Journey */}
         <section

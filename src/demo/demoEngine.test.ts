@@ -32,11 +32,11 @@ function freshState(): AppState {
 }
 
 describe('EigenH Guided Demo Academy V2 Engine', () => {
-  it('registers all 10 Library scenarios + all 8 dedicated Role Workflow Tutorials', () => {
-    assert.equal(DEMO_DIRECTOR_SCENARIOS.length, 10);
+  it('registers all 11 Library scenarios + all 8 dedicated Role Workflow Tutorials', () => {
+    assert.equal(DEMO_DIRECTOR_SCENARIOS.length, 11);
     assert.equal(ROLE_TUTORIAL_SCENARIOS.length, 8);
     assert.equal(ROLE_TUTORIAL_CARDS.length, 8);
-    assert.equal(ALL_ACADEMY_SCENARIOS.length, 18);
+    assert.equal(ALL_ACADEMY_SCENARIOS.length, 19);
 
     for (const card of ROLE_TUTORIAL_CARDS) {
       const scen = getScenarioById(card.scenarioId);
@@ -51,7 +51,7 @@ describe('EigenH Guided Demo Academy V2 Engine', () => {
     assert.equal(getScenarioById('role-clinician')?.scenes.length, 12);
   });
 
-  it('executes every single one of the 18 Academy scenarios (10 Library + 8 Role Tutorials) with 100% passing assertions', () => {
+  it('executes every single one of the 19 Academy scenarios (11 Library + 8 Role Tutorials) with 100% passing assertions', () => {
     for (const scenario of ALL_ACADEMY_SCENARIOS) {
       const result = runEntireScenarioSync(scenario, freshState());
       assert.equal(
@@ -227,5 +227,109 @@ describe('EigenH Guided Demo Academy V2 Engine', () => {
     assert.ok(computeTypingFrameDelayMs('manual', 3, 2) < computeTypingFrameDelayMs('manual', 3, 1));
     assert.equal(resolveDemoSelector('fd-checkin-btn-elena'), '[data-demo-target="fd-checkin-btn-elena"]');
     assert.equal(resolveDemoSelector('#post-soap-plan'), '#post-soap-plan');
+  });
+
+  it('recovers missing canonical seed patients (including pat-9) from stale localStorage without duplicating existing records', async () => {
+    const { rehydratePersistedAppState } = await import('../state/AppStateContext');
+    const stale = freshState();
+    stale.patients = stale.patients.filter((p) => p.id !== 'pat-9');
+    stale.externalDocQueue = [];
+
+    const recovered = rehydratePersistedAppState(stale);
+    const matchingAarav1974 = recovered.patients.filter(
+      (p) => p.fullName === 'Aarav Mehta' && p.dob === '1974-03-22'
+    );
+    assert.equal(matchingAarav1974.length, 1, 'Stale session must recover exactly one near-match Aarav Mehta (1974-03-22)');
+    assert.equal(matchingAarav1974[0].mrn, 'MRN-208612');
+    assert.ok(recovered.externalDocQueue.some((d) => d.id === 'extdoc-1'));
+
+    // Rehydrating a second time must never duplicate any patient
+    const recoveredTwice = rehydratePersistedAppState(recovered);
+    assert.equal(recoveredTwice.patients.length, recovered.patients.length);
+  });
+
+  it('reconstructs missing Bengaluru near-match fixture inside isolated Registration Demo sandbox and enforces real Step 2 Name-Only duplicate guard', async () => {
+    const {
+      buildCleanRegistrationDemoState,
+      findNearMatchAarav,
+      findRegisteredAarav,
+      REG_DEMO_NEAR_MATCH_MRN,
+    } = await import('./registrationConsolidationScenario');
+
+    const regScenario = getScenarioById('demo-00-registration-consolidation')!;
+    assert.ok(regScenario);
+
+    // Strip pat-9, Bengaluru facility, and Bengaluru staff to simulate worst-case stale workspace
+    const degraded = freshState();
+    degraded.patients = degraded.patients.filter((p) => p.id !== 'pat-9');
+    degraded.facilities = degraded.facilities.filter((f) => f.id !== 'fac-bengaluru');
+    degraded.staff = degraded.staff.filter((s) => s.facilityId !== 'fac-bengaluru');
+
+    const prepared = buildCleanRegistrationDemoState(degraded);
+    const nearMatch = findNearMatchAarav(prepared);
+    assert.ok(nearMatch, 'Prepared registration sandbox must reconstruct Bengaluru near-match fixture');
+    assert.equal(nearMatch.mrn, REG_DEMO_NEAR_MATCH_MRN);
+    assert.equal(nearMatch.dob, '1974-03-22');
+    assert.equal(prepared.currentFacilityId, 'fac-bengaluru');
+    assert.equal(prepared.currentRole, 'Front Desk');
+
+    // Step 2 validator MUST still honestly fail if near-match is removed from the validated state
+    const step2 = regScenario.scenes[1];
+    const withoutNearMatch: AppState = {
+      ...prepared,
+      patients: prepared.patients.filter((p) => p.id !== nearMatch.id),
+    };
+    const negativeCheck = step2.validate(withoutNearMatch);
+    assert.equal(negativeCheck.passed, false, 'Step 2 post-check must NOT be weakened; it must fail if near-match is absent');
+
+    // Running full 10-chapter registration demo from degraded state completes 10/10
+    const run1 = runEntireScenarioSync(regScenario, degraded);
+    assert.equal(run1.nextPlayback.status, 'COMPLETED', run1.nextPlayback.errorMessage || 'reg run1 failed');
+    assert.equal(run1.nextPlayback.assertionLogs.length, 10);
+    assert.ok(run1.nextPlayback.assertionLogs.every((l) => l.passed));
+
+    const registeredAarav = findRegisteredAarav(run1.nextAppState);
+    assert.ok(registeredAarav, 'Registered Aarav Mehta (1979-08-15) must exist after completion');
+    assert.equal(
+      run1.nextAppState.patients.filter((p) => p.fullName === 'Aarav Mehta').length,
+      2,
+      'Must keep both distinct Aarav Mehta records separate (1974-03-22 near-match + 1979-08-15 registered)'
+    );
+
+    // Double replay must produce zero duplicates across all collections
+    const run2 = runEntireScenarioSync(regScenario, run1.nextAppState);
+    assert.equal(run2.nextPlayback.status, 'COMPLETED');
+    const regCounts = (st: AppState) => ({
+      patients: st.patients.length,
+      nearMatches: st.patients.filter((p) => p.dob === '1974-03-22' && p.fullName === 'Aarav Mehta').length,
+      registered: st.patients.filter((p) => p.dob === '1979-08-15' && p.fullName === 'Aarav Mehta').length,
+      appointments: st.appointments.length,
+      documents: st.documents.length,
+      labs: st.labResults.length,
+      meds: st.medications.length,
+      inbox: st.dataInboxItems.length,
+      audits: st.auditEvents.filter((a) => a.id.startsWith('aud-regdemo-')).length,
+    });
+    assert.deepEqual(regCounts(run2.nextAppState), regCounts(run1.nextAppState));
+  });
+
+  it('executes all 19 Academy scenarios to 100% completion even from a stale state missing pat-9, pat-1, and extdoc-1', () => {
+    const stale = freshState();
+    stale.patients = stale.patients.filter((p) => p.id !== 'pat-9' && p.id !== 'pat-1');
+    stale.externalDocQueue = [];
+    stale.currentFacilityId = 'fac-bengaluru';
+
+    for (const scenario of ALL_ACADEMY_SCENARIOS) {
+      const result = runEntireScenarioSync(scenario, structuredClone(stale));
+      assert.equal(
+        result.nextPlayback.status,
+        'COMPLETED',
+        `Scenario ${scenario.id} failed from stale state: ${result.nextPlayback.errorMessage || 'unknown'}`
+      );
+      assert.ok(
+        result.nextPlayback.assertionLogs.every((l) => l.passed),
+        `Scenario ${scenario.id} had failing assertions from stale state`
+      );
+    }
   });
 });

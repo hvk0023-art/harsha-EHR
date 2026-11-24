@@ -180,6 +180,7 @@ export const INITIAL_APP_STATE: AppState = {
     { id: 'staff-10', name: 'Dr. Priya Subramanian, MD', role: 'Supervisor', specialty: 'Clinical Operations', facilityId: 'fac-boston', initials: 'PS' },
     { id: 'staff-11', name: 'Maya Patel, CMA', role: 'Medical Assistant', specialty: 'Outpatient Intake', facilityId: 'fac-boston', initials: 'MP' },
     { id: 'staff-12', name: 'Hannah Brooks, NP', role: 'Nurse Practitioner', specialty: 'Internal Medicine', facilityId: 'fac-boston', initials: 'HB' },
+    { id: 'staff-13', name: 'Kavya Nair', role: 'Front Desk', specialty: 'Patient Access (Bengaluru)', facilityId: 'fac-bengaluru', initials: 'KN' },
   ],
 
   patients: [
@@ -445,6 +446,38 @@ export const INITIAL_APP_STATE: AppState = {
       intakeFormsComplete: false,
       photoConsent: true,
       researchConsent: 'Not Asked',
+    },
+    {
+      id: 'pat-9',
+      mrn: 'MRN-208612',
+      fullName: 'Aarav Mehta',
+      dob: '1974-03-22',
+      age: 52,
+      sex: 'Male',
+      phone: '+91 98450 77812',
+      email: 'aarav.mehta.1974@example.in',
+      address: '45 Jayanagar 3rd Block, Bengaluru 560011',
+      facilityId: 'fac-bengaluru',
+      primaryProviderId: 'staff-8',
+      status: 'Active',
+      preferredLanguage: 'English / Hindi',
+      entryPath: 'Scheduled',
+      specialtyTags: ['Internal Medicine'],
+      allergies: [
+        { id: 'alg-9', substance: 'Ibuprofen (NSAIDs)', reaction: 'Gastric irritation', severity: 'Mild', verified: true, source: 'Local Chart', recordedDate: '2025-02-10' },
+      ],
+      conditions: [
+        { id: 'cnd-14', name: 'Seasonal allergic rhinitis', icd10: 'J30.2', status: 'Active', onsetDate: '2023-09-01', source: 'Local Verified', verified: true, lastReviewed: '2026-08-12' },
+      ],
+      historyItems: [],
+      caregivers: [],
+      careTeamIds: ['staff-8'],
+      intakeFormsComplete: true,
+      photoConsent: true,
+      researchConsent: 'Not Asked',
+      registrationStatus: 'Verified & Ready',
+      registrationVerifiedBy: 'Kavya Nair',
+      registrationVerifiedAt: '2026-08-12 10:15 IST',
     },
   ],
 
@@ -1631,6 +1664,10 @@ export const INITIAL_APP_STATE: AppState = {
       status: 'Pending Human Verification',
     },
   ],
+
+  dataInboxItems: [],
+
+  recommendationDecisions: {},
 
   scribeSessions: [],
 

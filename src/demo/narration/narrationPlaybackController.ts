@@ -66,6 +66,7 @@ export class NarrationQualityDiagnostics {
       sceneId: result.sceneId,
       providerUsed: result.providerUsed,
       voiceId: result.voiceId,
+      model: result.model,
       reason: result.reason,
       completedNaturally: result.completedNaturally,
       expectedDurationSec: result.expectedDurationSec,
@@ -113,7 +114,7 @@ export function mapDemoSpeedToNaturalSpeechRate(demoSpeed: number, baseRate: Nar
  * - Transparently falls back to synchronized BrowserTTSFallback when neural TTS is not configured.
  * - NEVER truncates active speech with an arbitrary short timer.
  * - Waits strictly for real audio `ended` / utterance `onend` + a 420ms natural trailing breath pause.
- * - Preserves exact playback position on pause() and resumes cleanly on resume().
+ * - Preserves exact playback position on pause() (including pauses requested during fetch/loading) and resumes cleanly on resume().
  * - Cancels audio ONLY on explicit user skip, exit, restart, or jump.
  */
 export class NarrationPlaybackController {
@@ -128,6 +129,8 @@ export class NarrationPlaybackController {
   private activeAudio: HTMLAudioElement | null = null;
   private activeAudioCancel: ((reason: NarrationCompletionReason) => void) | null = null;
   private statusListeners = new Set<PlaybackStatusListener>();
+  private pausedRequested = false;
+  private resumeWaiters: Array<() => void> = [];
 
   getStatus(): NarrationPlaybackStatus {
     return this.status;
@@ -158,6 +161,20 @@ export class NarrationPlaybackController {
     }
   }
 
+  private releaseResumeWaiters(): void {
+    const waiters = this.resumeWaiters.splice(0);
+    for (const resolve of waiters) resolve();
+  }
+
+  private async waitWhilePausedBeforeStart(isStillCurrent: () => boolean): Promise<boolean> {
+    while (this.pausedRequested && isStillCurrent()) {
+      await new Promise<void>((resolve) => {
+        this.resumeWaiters.push(resolve);
+      });
+    }
+    return isStillCurrent();
+  }
+
   async initialize(): Promise<NeuralTTSStatusResponse> {
     const status = await this.neuralProvider.refreshStatus();
     this.activeProvider = this.getActiveProvider();
@@ -181,15 +198,16 @@ export class NarrationPlaybackController {
     return 'browser:default';
   }
 
-  prefetchSceneText(authoritativeCaption: string, voiceId: string): void {
+  prefetchSceneText(authoritativeCaption: string, voiceId: string, model?: string): void {
     if (!this.neuralProvider.isAvailable()) return;
     if (voiceId.startsWith('browser:')) return;
     const spoken = prepareSpokenText(authoritativeCaption);
-    this.neuralProvider.prefetch(spoken, voiceId);
+    this.neuralProvider.prefetch(spoken, voiceId, model);
   }
 
   pause(): void {
-    if (this.status !== 'playing' && this.status !== 'loading') return;
+    if (this.status !== 'playing' && this.status !== 'loading' && this.status !== 'ready') return;
+    this.pausedRequested = true;
     if (this.activeAudio && !this.activeAudio.paused) {
       try {
         this.activeAudio.pause();
@@ -202,6 +220,8 @@ export class NarrationPlaybackController {
   }
 
   resume(): void {
+    this.pausedRequested = false;
+    this.releaseResumeWaiters();
     if (this.status !== 'paused') return;
     if (this.activeAudio && this.activeAudio.paused && !this.activeAudio.ended) {
       this.setStatus('playing');
@@ -219,7 +239,9 @@ export class NarrationPlaybackController {
    * NEVER call this when a sentence completes normally.
    */
   cancel(reason: NarrationCompletionReason = 'cancelled'): void {
+    this.pausedRequested = false;
     this.cancellation.invalidate();
+    this.releaseResumeWaiters();
     this.teardownActiveAudio(reason);
     this.browserFallback.cancel(reason);
     this.setStatus(reason === 'interrupted' ? 'interrupted' : 'idle');
@@ -254,12 +276,14 @@ export class NarrationPlaybackController {
     sceneId: string;
     authoritativeCaption: string;
     voiceId: string;
+    model?: string;
     rate: number;
     enabled: boolean;
   }): Promise<NarrationCompletionResult> {
     const spokenText = prepareSpokenText(params.authoritativeCaption);
     const generationId = this.cancellation.nextGeneration();
     const isStillCurrent = () => this.cancellation.isCurrent(generationId);
+    this.pausedRequested = false;
 
     if (!params.enabled || !spokenText) {
       this.setStatus('idle');
@@ -268,6 +292,7 @@ export class NarrationPlaybackController {
         sceneId: params.sceneId,
         providerUsed: 'captions-only',
         voiceId: params.voiceId,
+        model: params.model,
         reason: 'muted',
         completedNaturally: true,
         expectedDurationSec: null,
@@ -289,6 +314,7 @@ export class NarrationPlaybackController {
       const clip = await this.neuralProvider.synthesizeOrGetCached({
         text: spokenText,
         voiceId: params.voiceId,
+        model: params.model,
         signal: abortCtrl.signal,
       });
 
@@ -298,6 +324,7 @@ export class NarrationPlaybackController {
           sceneId: params.sceneId,
           providerUsed: 'gemini-neural',
           voiceId: params.voiceId,
+          model: params.model,
           reason: 'cancelled',
           completedNaturally: false,
           expectedDurationSec: clip?.durationSec ?? null,
@@ -307,6 +334,22 @@ export class NarrationPlaybackController {
       }
 
       if (clip) {
+        // Respect any pause clicked while audio was fetching from the server
+        if (!(await this.waitWhilePausedBeforeStart(isStillCurrent))) {
+          return {
+            generationId,
+            sceneId: params.sceneId,
+            providerUsed: 'gemini-neural',
+            voiceId: clip.voiceId,
+            model: clip.model,
+            reason: 'cancelled',
+            completedNaturally: false,
+            expectedDurationSec: clip.durationSec,
+            actualElapsedMs: Date.now() - startMs,
+            spokenText,
+          };
+        }
+
         this.activeProvider = 'gemini-neural';
         this.setStatus('ready');
         const audioOutcome = await this.playWavClipToCompletion({
@@ -321,6 +364,7 @@ export class NarrationPlaybackController {
           sceneId: params.sceneId,
           providerUsed: 'gemini-neural',
           voiceId: clip.voiceId,
+          model: clip.model,
           reason: audioOutcome.reason,
           completedNaturally: audioOutcome.reason === 'ended',
           expectedDurationSec: audioOutcome.durationSec || clip.durationSec || null,

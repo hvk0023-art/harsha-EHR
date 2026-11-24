@@ -5,6 +5,7 @@ const DEFAULT_MAX_CLIPS = 120;
 export function buildAudioCacheKey(params: {
   scriptVersion: string;
   provider: TTSProviderKind;
+  model?: string;
   voiceId: string;
   locale: string;
   text: string;
@@ -12,6 +13,7 @@ export function buildAudioCacheKey(params: {
   return [
     params.scriptVersion,
     params.provider,
+    params.model || 'default',
     params.voiceId,
     params.locale,
     params.text.trim(),

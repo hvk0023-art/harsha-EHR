@@ -220,27 +220,38 @@ export const Modal: React.FC<{
 
   return (
     <div
-      className={`fixed inset-0 ${zIndexClass} flex items-start justify-center bg-[#042C53]/35 px-4 pt-6 pb-32 sm:pt-8`}
+      className={`fixed inset-0 ${zIndexClass} flex items-start justify-center bg-[#042C53]/35 px-3 sm:px-4 pt-3 sm:pt-5`}
+      style={{
+        paddingBottom: 'calc(var(--demo-bar-clearance, 0px) + 0.75rem)',
+      }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <div className={`w-full ${maxWidth} bg-white rounded-lg border border-slate-200 shadow-lg max-h-[calc(100vh-9.5rem)] flex flex-col`}>
-        <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-slate-200">
-          <div>
-            <h2 className="text-base font-semibold text-[#042C53]">{title}</h2>
-            {subtitle && <p className="text-xs text-[#5F5D56] mt-0.5">{subtitle}</p>}
+      <div
+        data-modal-card="true"
+        className={`w-full ${maxWidth} bg-white rounded-lg border border-slate-200 shadow-lg flex flex-col overflow-hidden`}
+        style={{
+          maxHeight: 'calc(100dvh - var(--demo-bar-clearance, 0px) - 2rem)',
+        }}
+      >
+        <div className="flex items-start justify-between gap-3 px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-200 shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-sm sm:text-base font-semibold text-[#042C53] leading-tight">{title}</h2>
+            {subtitle && <p className="text-[11px] sm:text-xs text-[#5F5D56] mt-0.5 leading-snug">{subtitle}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label={`Close ${title}`}
-            className="p-1.5 text-slate-500 hover:text-slate-900 rounded hover:bg-slate-100"
+            className="p-1.5 text-slate-500 hover:text-slate-900 rounded hover:bg-slate-100 shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-5 overflow-y-auto eigen-scroll">{children}</div>
+        <div data-modal-body="true" className="p-4 sm:p-5 overflow-y-auto eigen-scroll">
+          {children}
+        </div>
       </div>
     </div>
   );

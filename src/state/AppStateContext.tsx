@@ -23,6 +23,7 @@ import type {
   BedUnit,
   ClaimRecord,
   ClinicalOrder,
+  ClinicalRecommendationDecision,
   Encounter,
   Facility,
   FaxRecord,
@@ -34,6 +35,7 @@ import type {
   Medication,
   Patient,
   PatientAllergy,
+  PatientDataInboxItem,
   PatientPortalSection,
   PatientTabKey,
   PortalShell,
@@ -178,38 +180,101 @@ interface AppContextValue {
   reconcileExternalDocument: (extDocId: string, targetPatientId: string, decision: 'file' | 'reject') => void;
   runSimulatedAmbientScribe: (patientId: string, encounterId: string, transcript: string) => void;
   decideComposerAction: (scribeSessionId: string, actionId: string, decision: 'approve' | 'cancel') => { ok: boolean; error?: string };
+  addDataInboxItem: (item: PatientDataInboxItem) => void;
+  confirmInboxItemPatient: (itemId: string, patientId: string) => void;
+  runDataInboxExtraction: (itemId: string) => void;
+  decideInboxExtractedField: (
+    itemId: string,
+    fieldId: string,
+    decision: 'Accepted' | 'Corrected' | 'Rejected',
+    correctedValue?: string
+  ) => void;
+  commitVerifiedInboxItem: (itemId: string) => { ok: boolean; error?: string; consolidatedCount?: number };
+  decideClinicalRecommendation: (
+    recommendationId: string,
+    patientId: string,
+    status: ClinicalRecommendationDecision['status'],
+    note?: string
+  ) => void;
   replaceEntireState: (nextState: AppState) => void;
 }
 
 const AppStateContext = createContext<AppContextValue | null>(null);
 
+/**
+ * Safely rehydrates persisted localStorage state while backfilling any newly added
+ * canonical seed facilities, staff, patients (such as near-match Bengaluru Aarav Mehta
+ * MRN-208612), and external document queue fixtures without duplicating or overwriting
+ * user-modified records.
+ */
+export function rehydratePersistedAppState(parsed: unknown): AppState {
+  if (!parsed || typeof parsed !== 'object') return INITIAL_APP_STATE;
+  const candidate = parsed as Partial<AppState>;
+  if (!Array.isArray(candidate.patients) || !Array.isArray(candidate.facilities)) {
+    return INITIAL_APP_STATE;
+  }
+
+  const existingFacilityIds = new Set(candidate.facilities.map((f) => f.id));
+  const mergedFacilities = [
+    ...candidate.facilities,
+    ...INITIAL_APP_STATE.facilities.filter((f) => !existingFacilityIds.has(f.id)),
+  ];
+
+  const existingStaff = Array.isArray(candidate.staff) ? candidate.staff : [];
+  const existingStaffIds = new Set(existingStaff.map((s) => s.id));
+  const mergedStaff = [
+    ...existingStaff,
+    ...INITIAL_APP_STATE.staff.filter((s) => !existingStaffIds.has(s.id)),
+  ];
+
+  const existingPatientIds = new Set(candidate.patients.map((p) => p.id));
+  const existingPatientMrns = new Set(
+    candidate.patients.map((p) => (p.mrn || '').trim().toUpperCase()).filter(Boolean)
+  );
+  const missingSeedPatients = INITIAL_APP_STATE.patients.filter(
+    (seedPat) =>
+      !existingPatientIds.has(seedPat.id) &&
+      !existingPatientMrns.has(seedPat.mrn.trim().toUpperCase())
+  );
+  const mergedPatients = [...candidate.patients, ...missingSeedPatients];
+
+  const existingExtDocs = Array.isArray(candidate.externalDocQueue)
+    ? candidate.externalDocQueue
+    : [];
+  const existingExtDocIds = new Set(existingExtDocs.map((d) => d.id));
+  const mergedExtDocs =
+    existingExtDocs.length > 0
+      ? [
+          ...existingExtDocs,
+          ...INITIAL_APP_STATE.externalDocQueue.filter((d) => !existingExtDocIds.has(d.id)),
+        ]
+      : INITIAL_APP_STATE.externalDocQueue;
+
+  return {
+    ...INITIAL_APP_STATE,
+    ...candidate,
+    facilities: mergedFacilities,
+    staff: mergedStaff,
+    patients: mergedPatients,
+    followUpPlans: Array.isArray(candidate.followUpPlans) ? candidate.followUpPlans : [],
+    preVisitIntakes: Array.isArray(candidate.preVisitIntakes) ? candidate.preVisitIntakes : [],
+    handoffs: Array.isArray(candidate.handoffs) ? candidate.handoffs : [],
+    externalDocQueue: mergedExtDocs,
+    dataInboxItems: Array.isArray(candidate.dataInboxItems) ? candidate.dataInboxItems : [],
+    recommendationDecisions:
+      candidate.recommendationDecisions && typeof candidate.recommendationDecisions === 'object'
+        ? candidate.recommendationDecisions
+        : {},
+    scribeSessions: Array.isArray(candidate.scribeSessions) ? candidate.scribeSessions : [],
+    unsavedDirty: false,
+  };
+}
+
 function loadInitialState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as AppState;
-      if (parsed && Array.isArray(parsed.patients) && Array.isArray(parsed.facilities)) {
-        // Ensure any newly seeded staff members (e.g., Supervisor) exist in persisted sessions
-        const existingStaffIds = new Set((parsed.staff || []).map((s) => s.id));
-        const mergedStaff = [
-          ...(parsed.staff || []),
-          ...INITIAL_APP_STATE.staff.filter((s) => !existingStaffIds.has(s.id)),
-        ];
-        return {
-          ...INITIAL_APP_STATE,
-          ...parsed,
-          staff: mergedStaff,
-          followUpPlans: Array.isArray(parsed.followUpPlans) ? parsed.followUpPlans : [],
-          preVisitIntakes: Array.isArray(parsed.preVisitIntakes) ? parsed.preVisitIntakes : [],
-          handoffs: Array.isArray(parsed.handoffs) ? parsed.handoffs : [],
-          externalDocQueue:
-            Array.isArray(parsed.externalDocQueue) && parsed.externalDocQueue.length > 0
-              ? parsed.externalDocQueue
-              : INITIAL_APP_STATE.externalDocQueue,
-          scribeSessions: Array.isArray(parsed.scribeSessions) ? parsed.scribeSessions : [],
-          unsavedDirty: false,
-        };
-      }
+      return rehydratePersistedAppState(JSON.parse(raw));
     }
   } catch {
     // ignore corrupted local storage
@@ -2561,6 +2626,360 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [appendAudit, notify, state.currentRole, state.scribeSessions]
   );
 
+  const addDataInboxItem = useCallback(
+    (item: PatientDataInboxItem) => {
+      setState((prev) => ({
+        ...prev,
+        dataInboxItems: [item, ...(prev.dataInboxItems || []).filter((x) => x.id !== item.id)],
+        auditEvents: appendAudit(
+          prev,
+          'Ingest Patient Data Inbox Document',
+          'Document',
+          item.id,
+          `Added "${item.title}" (${item.category}) from ${item.sourceOrganization}`
+        ),
+      }));
+      notify('success', `Document added to Patient Data Inbox: ${item.title}`);
+    },
+    [appendAudit, notify]
+  );
+
+  const confirmInboxItemPatient = useCallback(
+    (itemId: string, patientId: string) => {
+      setState((prev) => {
+        const pat = prev.patients.find((p) => p.id === patientId);
+        return {
+          ...prev,
+          dataInboxItems: (prev.dataInboxItems || []).map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  confirmedPatientId: patientId,
+                  candidatePatientIds: Array.from(new Set([patientId, ...item.candidatePatientIds])),
+                }
+              : item
+          ),
+          auditEvents: appendAudit(
+            prev,
+            'Confirm Inbox Document Patient',
+            'Document',
+            itemId,
+            `Staff confirmed patient match: ${pat?.fullName || patientId} (${pat?.mrn || ''})`
+          ),
+        };
+      });
+      notify('info', 'Patient match confirmed for incoming document');
+    },
+    [appendAudit, notify]
+  );
+
+  const runDataInboxExtraction = useCallback(
+    (itemId: string) => {
+      setState((prev) => ({
+        ...prev,
+        dataInboxItems: (prev.dataInboxItems || []).map((item) =>
+          item.id === itemId ? { ...item, status: 'AI Extracted' as const } : item
+        ),
+        auditEvents: appendAudit(
+          prev,
+          'Run AI Document Extraction (Synthetic)',
+          'Document',
+          itemId,
+          'Extracted candidate clinical fields with source snippets and uncertainty flags (human verification required)'
+        ),
+      }));
+      notify('info', 'AI-assisted extraction complete — review highlighted fields before saving');
+    },
+    [appendAudit, notify]
+  );
+
+  const decideInboxExtractedField = useCallback(
+    (
+      itemId: string,
+      fieldId: string,
+      decision: 'Accepted' | 'Corrected' | 'Rejected',
+      correctedValue?: string
+    ) => {
+      setState((prev) => {
+        const actor = prev.staff.find((s) => s.id === prev.currentUserId)?.name || 'Authorized Staff';
+        const fac = prev.facilities.find((f) => f.id === prev.currentFacilityId);
+        const ts = `${TODAY_DATE} ${new Date().toTimeString().slice(0, 5)} ${fac?.tzAbbr || 'IST'}`;
+        return {
+          ...prev,
+          dataInboxItems: (prev.dataInboxItems || []).map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  extractedFields: item.extractedFields.map((f) =>
+                    f.id === fieldId
+                      ? {
+                          ...f,
+                          decision,
+                          correctedValue: decision === 'Corrected' ? correctedValue ?? f.value : f.correctedValue,
+                          reviewedBy: actor,
+                          reviewedAt: ts,
+                        }
+                      : f
+                  ),
+                }
+              : item
+          ),
+        };
+      });
+    },
+    []
+  );
+
+  const commitVerifiedInboxItem = useCallback(
+    (itemId: string): { ok: boolean; error?: string; consolidatedCount?: number } => {
+      const targetItem = (state.dataInboxItems || []).find((x) => x.id === itemId);
+      if (!targetItem) return { ok: false, error: 'Document not found in Data Inbox.' };
+      if (!targetItem.confirmedPatientId) {
+        notify('error', 'Confirm the matching patient before saving verified records.');
+        return { ok: false, error: 'Confirm the matching patient first.' };
+      }
+
+      const approvedFields = targetItem.extractedFields.filter(
+        (f) => f.decision === 'Accepted' || f.decision === 'Corrected'
+      );
+      if (approvedFields.length === 0) {
+        notify('warning', 'Accept or correct at least one extracted field before consolidating.');
+        return { ok: false, error: 'No accepted or corrected fields to save.' };
+      }
+
+      const patientId = targetItem.confirmedPatientId;
+      const docId = `doc-inbox-${targetItem.id}`;
+
+      setState((prev) => {
+        const actor = prev.staff.find((s) => s.id === prev.currentUserId)?.name || 'Authorized Staff';
+        const fac = prev.facilities.find((f) => f.id === prev.currentFacilityId);
+        const ts = `${TODAY_DATE} ${new Date().toTimeString().slice(0, 5)} ${fac?.tzAbbr || 'IST'}`;
+        const patient = prev.patients.find((p) => p.id === patientId);
+        if (!patient) return prev;
+
+        const docCategory: AppState['documents'][number]['category'] =
+          targetItem.category === 'Laboratory Report'
+            ? 'Lab PDF'
+            : targetItem.category === 'Imaging Report'
+            ? 'Imaging'
+            : 'External Record';
+
+        const newDoc = {
+          id: docId,
+          patientId,
+          title: targetItem.title,
+          category: docCategory,
+          author: targetItem.sourceOrganization,
+          source: `${targetItem.sourceOrganization} (${targetItem.sourceAdapter})`,
+          date: targetItem.documentDate,
+          version: 1,
+          verified: true,
+          external: true,
+          summary: `Verified & consolidated ${approvedFields.length} field(s) by ${actor} on ${ts}.`,
+          rawPreviewText: targetItem.rawPreviewText,
+          inboxItemId: targetItem.id,
+        };
+
+        const addedLabs = [...prev.labResults];
+        const addedImaging = [...prev.imagingReports];
+        const addedMeds = [...prev.medications];
+        let nextConditions = [...patient.conditions];
+        let nextHistory = [...patient.historyItems];
+
+        for (const f of approvedFields) {
+          const finalValue = (f.decision === 'Corrected' && f.correctedValue ? f.correctedValue : f.value).trim();
+          const meta = f.metadata || {};
+
+          if (f.targetSection === 'Lab') {
+            const labId = `lab-inbox-${f.id}`;
+            if (!addedLabs.some((l) => l.id === labId)) {
+              const parsedNum = Number(meta.numericValue || finalValue.match(/[\d.]+/)?.[0]);
+              addedLabs.unshift({
+                id: labId,
+                orderId: `ord-ext-${targetItem.id}`,
+                patientId,
+                facilityId: patient.facilityId,
+                testName: meta.testName || f.label,
+                collectionDate: targetItem.documentDate,
+                value: meta.value || finalValue,
+                numericValue: Number.isFinite(parsedNum) ? parsedNum : undefined,
+                unit: meta.unit || '',
+                referenceInterval: meta.referenceInterval || 'See external lab report',
+                flag:
+                  meta.flag === 'Critical' || meta.flag === 'Abnormal' || meta.flag === 'Normal'
+                    ? meta.flag
+                    : 'Normal',
+                status: 'Final',
+                reviewOwnerId: patient.primaryProviderId,
+                patientReleased: false,
+                sourceDocumentId: docId,
+                sourceLabel: targetItem.title,
+              });
+            }
+          } else if (f.targetSection === 'Imaging') {
+            const imgId = `img-inbox-${f.id}`;
+            if (!addedImaging.some((i) => i.id === imgId)) {
+              const mod = (meta.modality as AppState['imagingReports'][number]['modality']) || 'Ultrasound';
+              addedImaging.unshift({
+                id: imgId,
+                orderId: `ord-img-${targetItem.id}`,
+                patientId,
+                facilityId: patient.facilityId,
+                studyName: meta.studyName || f.label,
+                modality: mod,
+                performedAt: targetItem.documentDate,
+                status: 'Final',
+                findings: meta.findings || finalValue,
+                impression: meta.impression || finalValue,
+                priorComparison: 'Consolidated from external report',
+                radiologist: meta.radiologist || targetItem.sourceOrganization,
+                patientReleased: false,
+                sourceDocumentId: docId,
+                sourceLabel: targetItem.title,
+              });
+            }
+          } else if (f.targetSection === 'Condition') {
+            const condId = `cnd-inbox-${f.id}`;
+            if (!nextConditions.some((c) => c.id === condId)) {
+              nextConditions = [
+                {
+                  id: condId,
+                  name: meta.conditionName || finalValue,
+                  icd10: meta.icd10 || 'Z00.00',
+                  status: 'Active',
+                  onsetDate: meta.onsetDate || targetItem.documentDate,
+                  source: 'External HIE',
+                  verified: true,
+                  lastReviewed: TODAY_DATE,
+                },
+                ...nextConditions,
+              ];
+            }
+          } else if (f.targetSection === 'Medication') {
+            const medId = `med-inbox-${f.id}`;
+            if (!addedMeds.some((m) => m.id === medId)) {
+              addedMeds.unshift({
+                id: medId,
+                patientId,
+                name: meta.medName || finalValue,
+                dose: meta.dose || 'Verify dose',
+                route: 'Oral',
+                frequency: meta.frequency || 'Per external summary',
+                status: 'Active',
+                prescriberId: patient.primaryProviderId,
+                pharmacy: meta.pharmacy || targetItem.sourceOrganization,
+                formularyStatus: 'Tier 1 Preferred',
+                controlled: false,
+                reconciled: false,
+                startDate: targetItem.documentDate,
+                refillsRemaining: 0,
+                safetyNote: `Imported from ${targetItem.title} — verified at intake, pending clinician medication reconciliation`,
+              });
+            }
+          } else if (f.targetSection === 'History') {
+            const histId = `hist-inbox-${f.id}`;
+            if (!nextHistory.some((h) => h.id === histId)) {
+              nextHistory = [
+                {
+                  id: histId,
+                  category: (meta.historyCategory as Patient['historyItems'][number]['category']) || 'Medical',
+                  title: meta.title || f.label,
+                  detail: finalValue,
+                  date: targetItem.documentDate,
+                  source: targetItem.title,
+                  lastReviewed: TODAY_DATE,
+                  verified: true,
+                },
+                ...nextHistory,
+              ];
+            }
+          }
+        }
+
+        const nextPatients = prev.patients.map((p) =>
+          p.id === patientId
+            ? {
+                ...p,
+                conditions: nextConditions,
+                historyItems: nextHistory,
+              }
+            : p
+        );
+
+        const nextDocuments = [newDoc, ...prev.documents.filter((d) => d.id !== docId)];
+
+        return {
+          ...prev,
+          patients: nextPatients,
+          labResults: addedLabs,
+          imagingReports: addedImaging,
+          medications: addedMeds,
+          documents: nextDocuments,
+          dataInboxItems: (prev.dataInboxItems || []).map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  status: 'Verified & Consolidated' as const,
+                  verifiedBy: actor,
+                  verifiedAt: ts,
+                }
+              : item
+          ),
+          auditEvents: appendAudit(
+            prev,
+            'Verify & Consolidate Inbox Document',
+            'Patient',
+            patientId,
+            `Consolidated ${approvedFields.length} verified field(s) from "${targetItem.title}" into ${patient.fullName} (${patient.mrn})`
+          ),
+        };
+      });
+
+      notify('success', `Consolidated ${approvedFields.length} verified field(s) into patient profile & timeline`);
+      return { ok: true, consolidatedCount: approvedFields.length };
+    },
+    [appendAudit, notify, state.dataInboxItems]
+  );
+
+  const decideClinicalRecommendation = useCallback(
+    (
+      recommendationId: string,
+      patientId: string,
+      status: ClinicalRecommendationDecision['status'],
+      note?: string
+    ) => {
+      setState((prev) => {
+        const actor = prev.staff.find((s) => s.id === prev.currentUserId)?.name || 'Authorized Staff';
+        const fac = prev.facilities.find((f) => f.id === prev.currentFacilityId);
+        const ts = `${TODAY_DATE} ${new Date().toTimeString().slice(0, 5)} ${fac?.tzAbbr || 'IST'}`;
+        return {
+          ...prev,
+          recommendationDecisions: {
+            ...(prev.recommendationDecisions || {}),
+            [recommendationId]: {
+              recommendationId,
+              patientId,
+              status,
+              decidedBy: actor,
+              decidedRole: prev.currentRole,
+              decidedAt: ts,
+              note,
+            },
+          },
+          auditEvents: appendAudit(
+            prev,
+            `Clinical Intelligence Recommendation ${status}`,
+            'Patient',
+            patientId,
+            `${actor} (${prev.currentRole}) marked recommendation ${recommendationId} as ${status}${note ? `: ${note}` : ''}`
+          ),
+        };
+      });
+      notify('success', `Recommendation marked as ${status}`);
+    },
+    [appendAudit, notify]
+  );
+
   const replaceEntireState = useCallback((nextState: AppState) => {
     setState({ ...nextState, unsavedDirty: false });
   }, []);
@@ -2657,6 +3076,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         reconcileExternalDocument,
         runSimulatedAmbientScribe,
         decideComposerAction,
+        addDataInboxItem,
+        confirmInboxItemPatient,
+        runDataInboxExtraction,
+        decideInboxExtractedField,
+        commitVerifiedInboxItem,
+        decideClinicalRecommendation,
         replaceEntireState,
       }}
     >

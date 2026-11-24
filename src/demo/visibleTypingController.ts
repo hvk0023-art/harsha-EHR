@@ -140,11 +140,23 @@ export function computeCursorAnchor(el: HTMLElement): { x: number; y: number } {
 export function scrollDemoTargetIntoView(el: HTMLElement, targetName: string): void {
   if (targetName === 'role-preview-switcher' || targetName === 'facility-switcher') return;
   const rect = el.getBoundingClientRect();
-  const safeTop = 148;
-  const safeBottom = window.innerHeight - 180;
+  const barEl = document.querySelector('[data-demo-director-bar="true"]') as HTMLElement | null;
+  const barHeight = barEl ? Math.ceil(barEl.getBoundingClientRect().height) + 20 : 180;
+  const modalBody = el.closest('[data-modal-body="true"]') as HTMLElement | null;
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  if (modalBody) {
+    const bodyRect = modalBody.getBoundingClientRect();
+    if (rect.top < bodyRect.top + 12 || rect.bottom > bodyRect.bottom - 12) {
+      el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center', inline: 'nearest' });
+    }
+    return;
+  }
+
+  const safeTop = 120;
+  const safeBottom = window.innerHeight - barHeight;
   if (rect.top < safeTop || rect.bottom > safeBottom) {
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+    el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center', inline: 'nearest' });
   }
 }
 
@@ -186,6 +198,7 @@ export async function performVisibleTyping(
     speed: DemoSpeed;
     append?: boolean;
     token: CancellationToken;
+    waitWhilePaused?: () => Promise<boolean>;
     onFrame?: (currentValue: string) => void;
   }
 ): Promise<boolean> {
@@ -207,8 +220,11 @@ export async function performVisibleTyping(
 
   const delayMs = computeTypingFrameDelayMs(options.mode, value.length, options.speed);
 
-  // Brief clear before manual re-entry if replacing existing text
   if (!options.append && existing && options.mode === 'manual') {
+    if (options.waitWhilePaused && !(await options.waitWhilePaused())) {
+      el.classList.remove('demo-ai-autofill-flash');
+      return false;
+    }
     setReactControlledValue(el, '');
     const ok = await waitMs(Math.max(40, Math.round(90 / options.speed)), options.token);
     if (!ok) {
@@ -221,6 +237,13 @@ export async function performVisibleTyping(
     if (options.token.cancelled) {
       el.classList.remove('demo-ai-autofill-flash');
       return false;
+    }
+    if (options.waitWhilePaused && !(await options.waitWhilePaused())) {
+      el.classList.remove('demo-ai-autofill-flash');
+      return false;
+    }
+    if (document.activeElement !== el) {
+      el.focus();
     }
     setReactControlledValue(el, frame);
     options.onFrame?.(frame);

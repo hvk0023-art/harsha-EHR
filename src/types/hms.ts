@@ -35,6 +35,8 @@ export type PatientTabKey =
   | 'post-consultation'
   | 'pre-visit-intake'
   | 'overview'
+  | 'data-inbox'
+  | 'knowledge-graph'
   | 'timeline'
   | 'history'
   | 'encounters'
@@ -45,6 +47,80 @@ export type PatientTabKey =
   | 'documents-forms'
   | 'ai-agent'
   | 'account';
+
+export type DataVerificationState =
+  | 'Verified'
+  | 'Patient-Reported'
+  | 'External Awaiting Verification'
+  | 'AI-Extracted'
+  | 'Missing';
+
+export interface FieldProvenanceEntry {
+  status: DataVerificationState;
+  source: string;
+  updatedAt: string;
+  verifiedBy?: string;
+}
+
+export type InboxDocumentCategory =
+  | 'Previous Medical History'
+  | 'Laboratory Report'
+  | 'Imaging Report'
+  | 'Medication Record'
+  | 'Pharmacy Information'
+  | 'Discharge Summary'
+  | 'Clinical Consultation Note'
+  | 'Other Medical Document';
+
+export interface InboxExtractedField {
+  id: string;
+  label: string;
+  value: string;
+  correctedValue?: string;
+  targetSection: 'Condition' | 'Lab' | 'Imaging' | 'Medication' | 'Allergy' | 'History' | 'Demographics';
+  sourceSnippet: string;
+  confidence: 'High' | 'Medium' | 'Low';
+  uncertain: boolean;
+  uncertaintyReason?: string;
+  decision: 'Pending' | 'Accepted' | 'Corrected' | 'Rejected';
+  reviewedBy?: string;
+  reviewedAt?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface PatientDataInboxItem {
+  id: string;
+  title: string;
+  category: InboxDocumentCategory;
+  sourceAdapter: 'Synthetic Local Upload' | 'Patient-Submitted Document (Demo)' | 'External Clinic PDF (Demo)';
+  sourceOrganization: string;
+  receivedAt: string;
+  documentDate: string;
+  rawPreviewText: string;
+  extractedIdentity: {
+    fullName: string;
+    dob?: string;
+    phone?: string;
+    mrnOrExternalId?: string;
+    abhaOptional?: string;
+  };
+  candidatePatientIds: string[];
+  confirmedPatientId?: string;
+  status: 'Uploaded' | 'Classified' | 'AI Extracted' | 'Verified & Consolidated' | 'Rejected';
+  extractedFields: InboxExtractedField[];
+  verifiedBy?: string;
+  verifiedAt?: string;
+}
+
+export interface ClinicalRecommendationDecision {
+  recommendationId: string;
+  patientId: string;
+  status: 'Accepted' | 'Reviewed' | 'Dismissed';
+  decidedBy: string;
+  decidedRole: StaffRole;
+  decidedAt: string;
+  note?: string;
+}
 
 export type PatientPortalSection =
   | 'summary'
@@ -175,6 +251,10 @@ export interface Patient {
   researchConsent: 'Consented' | 'Declined' | 'Not Asked';
   chiefConcern?: string;
   customFields?: Record<string, string>;
+  registrationStatus?: 'Scheduled Lookup' | 'In Progress' | 'Verified & Ready';
+  registrationVerifiedBy?: string;
+  registrationVerifiedAt?: string;
+  fieldProvenance?: Record<string, FieldProvenanceEntry>;
 }
 
 export type AppointmentStatus =
@@ -296,6 +376,8 @@ export interface LabResult {
   reviewOwnerId: string;
   reviewedAt?: string;
   patientReleased: boolean;
+  sourceDocumentId?: string;
+  sourceLabel?: string;
   priorVersions?: { version: number; value: string; timestamp: string; note: string }[];
 }
 
@@ -313,6 +395,8 @@ export interface ImagingReport {
   priorComparison: string;
   radiologist: string;
   patientReleased: boolean;
+  sourceDocumentId?: string;
+  sourceLabel?: string;
 }
 
 export interface Medication {
@@ -451,6 +535,8 @@ export interface PatientDocument {
   verified: boolean;
   external: boolean;
   summary: string;
+  rawPreviewText?: string;
+  inboxItemId?: string;
 }
 
 export interface FormAssignment {
@@ -878,6 +964,8 @@ export interface AppState {
   preVisitIntakes: PreVisitIntakeSubmission[];
   handoffs: ClinicalHandoffRecord[];
   externalDocQueue: ExternalDocCandidate[];
+  dataInboxItems: PatientDataInboxItem[];
+  recommendationDecisions: Record<string, ClinicalRecommendationDecision>;
   scribeSessions: AmbientScribeSession[];
   adminConfig: AdminConfig;
 }

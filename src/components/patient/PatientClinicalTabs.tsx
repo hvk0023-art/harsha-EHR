@@ -3,14 +3,23 @@ import {
   Activity,
   AlertTriangle,
   Check,
+  CheckCircle2,
+  Eye,
   FileSignature,
+  FileText,
+  Inbox,
   Mic,
+  Network,
   Plus,
+  ShieldCheck,
   Sparkles,
+  UserCheck,
   Video,
+  X,
 } from 'lucide-react';
 import { TODAY_DATE } from '../../data/seedData';
 import { buildPatientTimeline, filterTimelineEvents } from '../../state/clinicalEvents';
+import { buildExplainableRecommendations } from '../../state/knowledgeGraph';
 import { useAppState } from '../../state/AppStateContext';
 import type { Encounter, Patient } from '../../types/hms';
 import { SimpleLineChart } from '../ui/Charts';
@@ -28,90 +37,311 @@ const SMART_PHRASES = [
 ];
 
 export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) => {
-  const { state, setPatientTab, verifyExternalCondition, notify } = useAppState();
+  const {
+    state,
+    setPatientTab,
+    verifyExternalCondition,
+    decideClinicalRecommendation,
+    notify,
+  } = useAppState();
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null);
 
-  const patientMeds = state.medications.filter((m) => m.patientId === patient.id && m.status !== 'Discontinued');
+  const patientMeds = state.medications.filter(
+    (m) => m.patientId === patient.id && m.status !== 'Discontinued'
+  );
   const patientLabs = state.labResults.filter((l) => l.patientId === patient.id);
-  const patientAppts = state.appointments.filter((a) => a.patientId === patient.id && a.status !== 'Cancelled');
+  const patientImaging = state.imagingReports.filter((i) => i.patientId === patient.id);
+  const patientDocs = state.documents.filter((d) => d.patientId === patient.id);
+  const patientAppts = state.appointments.filter(
+    (a) => a.patientId === patient.id && a.status !== 'Cancelled'
+  );
   const latestVitals = state.vitals.find((v) => v.patientId === patient.id);
   const careTeam = state.staff.filter((s) => patient.careTeamIds.includes(s.id));
+  const pendingInboxCount = (state.dataInboxItems || []).filter(
+    (item) =>
+      (item.confirmedPatientId === patient.id || item.candidatePatientIds.includes(patient.id)) &&
+      item.status !== 'Verified & Consolidated' &&
+      item.status !== 'Rejected'
+  ).length;
+
+  const recommendations = useMemo(
+    () => buildExplainableRecommendations(state, patient.id),
+    [patient.id, state]
+  );
+
+  const missingInfoItems = useMemo(() => {
+    const missing: string[] = [];
+    if (patient.allergies.length === 0) {
+      missing.push('Allergy status not yet verified (confirm NKDA or allergies at intake)');
+    }
+    if (patient.caregivers.length === 0) {
+      missing.push('Emergency contact / caregiver not recorded');
+    }
+    if (!latestVitals) {
+      missing.push('Current-visit baseline vitals pending rooming');
+    }
+    if (!patient.abhaId) {
+      missing.push('Optional ABHA ID not provided (not required for registration)');
+    }
+    return missing;
+  }, [latestVitals, patient.abhaId, patient.allergies.length, patient.caregivers.length]);
+
+  const previewDoc = patientDocs.find((d) => d.id === previewDocId) || null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
-      {/* Left 2 Columns */}
-      <div className="lg:col-span-2 space-y-4">
-        {/* Active Problems (Distinguishing Verified vs External) */}
-        <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#042C53]">Active Problems & Conditions</h2>
+    <div data-demo-target="patient-360-profile" className="space-y-4 text-xs">
+      {/* Patient 360 Intelligence Header Strip */}
+      <section className="bg-white border border-slate-200 border-t-4 border-t-[#185FA5] rounded-lg p-4 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-[#042C53]">
+                Patient 360° Intelligence Profile
+              </h2>
+              <StatusBadge
+                label={patient.registrationStatus || 'Verified & Ready'}
+                tone="success"
+              />
+              {patient.registrationVerifiedBy && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-[#0F6E50] font-medium">
+                  <UserCheck className="w-3.5 h-3.5" />
+                  Verified by {patient.registrationVerifiedBy}
+                  {patient.registrationVerifiedAt ? ` · ${patient.registrationVerifiedAt}` : ''}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-[#5F5D56]">
+              {patient.chiefConcern
+                ? `Scheduled Visit Context: ${patient.chiefConcern}`
+                : 'Longitudinal patient profile distinguishing verified records, patient-reported items, external awaiting verification, AI-extracted drafts, and missing information.'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setPatientTab('history')}
-              className="text-xs text-[#185FA5] hover:underline"
+              onClick={() => setPatientTab('data-inbox')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E6F1FB] hover:bg-[#85B7EB]/40 text-[#042C53] font-medium rounded-md"
             >
-              Manage History
+              <Inbox className="w-3.5 h-3.5 text-[#185FA5]" />
+              Patient Data Inbox{pendingInboxCount > 0 ? ` (${pendingInboxCount} Pending)` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPatientTab('knowledge-graph')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#042C53] hover:bg-[#185FA5] text-white font-medium rounded-md"
+            >
+              <Network className="w-3.5 h-3.5" />
+              Patient Knowledge Graph
             </button>
           </div>
-          {patient.conditions.length === 0 ? (
-            <p className="text-[#5F5D56]">No active conditions recorded.</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {patient.conditions.map((c) => (
-                <div key={c.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="font-medium text-[#042C53]">
-                      {c.name}{' '}
-                      <span className="font-mono text-[11px] text-[#5F5D56]">{c.icd10}</span>
-                    </div>
-                    <div className="text-[11px] text-[#5F5D56]">
-                      Source: {c.source} · Onset {c.onsetDate} · Reviewed {c.lastReviewed}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
+        </div>
+
+        {/* Provenance State Legend */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-[10px]">
+          <span className="font-semibold text-[#5F5D56] uppercase tracking-wide">
+            Provenance States:
+          </span>
+          <StatusBadge label="Verified" tone="success" />
+          <StatusBadge label="Patient-Reported" tone="blue" />
+          <StatusBadge label="External Awaiting Verification" tone="warning" />
+          <StatusBadge label="AI-Extracted" tone="blue" />
+          <StatusBadge label="Missing" tone="neutral" />
+        </div>
+      </section>
+
+      {/* Explainable AI Recommendations Panel — EigenH Clinical Intelligence */}
+      {recommendations.length > 0 && (
+        <section
+          data-demo-target="clinical-intelligence-panel"
+          className="bg-white border border-[#85B7EB] rounded-lg p-4 space-y-3"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#185FA5]" />
+                <h2 className="text-sm font-semibold text-[#042C53]">
+                  EigenH Clinical Intelligence · Explainable Workflow Suggestions ({recommendations.length})
+                </h2>
+                <StatusBadge label="Advisory Only — Human Review Required" tone="blue" />
+                <StatusBadge label="Deterministic Rule-Based Prototype (Simulated AI)" tone="neutral" />
+              </div>
+              <p className="text-[11px] text-[#5F5D56] mt-0.5">
+                Deterministic rule-based documentation-quality and coordination suggestions derived from current synthetic chart records (simulated AI prototype — not live clinical LLM inference; never autonomously diagnoses, prescribes, or signs notes).
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {recommendations.map((rec, idx) => (
+              <article
+                key={rec.id}
+                data-demo-target={`clinical-rec-card-${idx}`}
+                className={`p-3 rounded-lg border space-y-2 ${
+                  rec.status === 'Accepted' || rec.status === 'Reviewed'
+                    ? 'bg-teal-50/40 border-teal-200'
+                    : rec.status === 'Dismissed'
+                    ? 'bg-slate-50 border-slate-200 opacity-75'
+                    : 'bg-[#F7F7F5] border-slate-200'
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <StatusBadge
-                      label={c.verified ? 'Local Verified' : 'External Unverified'}
-                      tone={c.verified ? 'success' : 'warning'}
+                      label={rec.category}
+                      tone={
+                        rec.priority === 'High'
+                          ? 'warning'
+                          : rec.priority === 'Medium'
+                          ? 'blue'
+                          : 'neutral'
+                      }
                     />
-                    {!c.verified && (
-                      <button
-                        type="button"
-                        onClick={() => verifyExternalCondition(patient.id, c.id)}
-                        className="px-2 py-0.5 text-[11px] font-medium bg-[#185FA5] text-white rounded"
-                      >
-                        Verify & Reconcile
-                      </button>
-                    )}
+                    <StatusBadge
+                      label={rec.status}
+                      tone={
+                        rec.status === 'Accepted' || rec.status === 'Reviewed'
+                          ? 'success'
+                          : rec.status === 'Dismissed'
+                          ? 'neutral'
+                          : 'blue'
+                      }
+                    />
+                  </div>
+                  <span className="text-[10px] font-medium text-[#5F5D56]">
+                    Reviewer: <strong className="text-[#042C53]">{rec.responsibleReviewer}</strong>
+                  </span>
+                </div>
+
+                <div className="font-semibold text-[#042C53] leading-snug">{rec.whatSuggested}</div>
+
+                <div className="space-y-1 text-[11px] text-[#444441]">
+                  <div>
+                    <strong className="text-[#042C53]">Why it appeared:</strong> {rec.whyAppeared}
+                  </div>
+                  <div>
+                    <strong className="text-[#042C53]">Supporting patient record:</strong>{' '}
+                    <span className="font-mono text-[10px]">{rec.supportingPatientInfo}</span>
+                  </div>
+                  {rec.supportingReference && (
+                    <div>
+                      <strong className="text-[#042C53]">Reference context:</strong>{' '}
+                      {rec.supportingReference}
+                    </div>
+                  )}
+                  <div className="text-[#9A5B10]">
+                    <strong>Uncertainty / Scope limit:</strong> {rec.uncertaintyNote}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
 
-        {/* Medications & Allergies */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+                <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                  {rec.decidedBy ? (
+                    <span className="text-[10px] text-[#0F6E50] inline-flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      {rec.status} by {rec.decidedBy}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-[#5F5D56]">{rec.safetyBoundary}</span>
+                  )}
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      data-demo-target={`rec-accept-btn-${idx}`}
+                      onClick={() =>
+                        decideClinicalRecommendation(rec.id, patient.id, 'Accepted')
+                      }
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-[#0F6E50] hover:bg-[#042C53] text-white rounded text-[11px] font-medium"
+                    >
+                      <Check className="w-3 h-3" />
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      data-demo-target={`rec-review-btn-${idx}`}
+                      onClick={() => {
+                        decideClinicalRecommendation(rec.id, patient.id, 'Reviewed');
+                        if (rec.targetTab !== 'overview') setPatientTab(rec.targetTab);
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-slate-300 text-[#042C53] rounded text-[11px] hover:bg-slate-50"
+                    >
+                      <Eye className="w-3 h-3" />
+                      Review
+                    </button>
+                    <button
+                      type="button"
+                      data-demo-target={`rec-dismiss-btn-${idx}`}
+                      onClick={() =>
+                        decideClinicalRecommendation(rec.id, patient.id, 'Dismissed')
+                      }
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-slate-300 text-[#5F5D56] rounded text-[11px] hover:bg-slate-100"
+                    >
+                      <X className="w-3 h-3" />
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Main 3-Column Longitudinal Profile Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left 2 Columns */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Active Problems (Distinguishing Verified vs External) */}
+          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2.5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[#042C53]">Current Medications ({patientMeds.length})</h2>
+              <h2 className="text-sm font-semibold text-[#042C53]">
+                Active Problems & Conditions ({patient.conditions.length})
+              </h2>
               <button
                 type="button"
-                onClick={() => setPatientTab('medications')}
+                onClick={() => setPatientTab('history')}
                 className="text-xs text-[#185FA5] hover:underline"
               >
-                Prescribe / Reconcile
+                Manage History
               </button>
             </div>
-            {patientMeds.length === 0 ? (
-              <p className="text-[#5F5D56]">No active medications.</p>
+            {patient.conditions.length === 0 ? (
+              <p className="text-[#5F5D56]">
+                No active conditions recorded yet. Consolidate outside summaries via Data Inbox or add during clinician review.
+              </p>
             ) : (
               <div className="divide-y divide-slate-100">
-                {patientMeds.map((m) => (
-                  <div key={m.id} className="py-2">
-                    <div className="font-medium text-[#042C53]">
-                      {m.name} {m.dose}
+                {patient.conditions.map((c) => (
+                  <div key={c.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-[#042C53]">
+                        {c.name}{' '}
+                        <span className="font-mono text-[11px] text-[#5F5D56]">{c.icd10}</span>
+                      </div>
+                      <div className="text-[11px] text-[#5F5D56]">
+                        Source: {c.source} · Onset {c.onsetDate} · Reviewed {c.lastReviewed}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-[#5F5D56]">
-                      {m.route} · {m.frequency} · {m.reconciled ? 'Reconciled' : 'Needs reconciliation'}
+                    <div className="flex items-center gap-2">
+                      <StatusBadge
+                        label={
+                          c.verified
+                            ? 'Verified'
+                            : c.source === 'Patient Reported'
+                            ? 'Patient-Reported'
+                            : 'External Awaiting Verification'
+                        }
+                        tone={c.verified ? 'success' : 'warning'}
+                      />
+                      {!c.verified && (
+                        <button
+                          type="button"
+                          onClick={() => verifyExternalCondition(patient.id, c.id)}
+                          className="px-2 py-0.5 text-[11px] font-medium bg-[#185FA5] text-white rounded"
+                        >
+                          Verify & Reconcile
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -119,21 +349,174 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
             )}
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-            <h2 className="text-sm font-semibold text-[#042C53]">Allergies & Precautions</h2>
-            {patient.allergies.length === 0 ? (
-              <p className="text-[#5F5D56]">No known drug allergies (NKDA) documented.</p>
+          {/* Medications & Allergies */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-[#042C53]">
+                  Current Medications ({patientMeds.length})
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setPatientTab('medications')}
+                  className="text-xs text-[#185FA5] hover:underline"
+                >
+                  Prescribe / Reconcile
+                </button>
+              </div>
+              {patientMeds.length === 0 ? (
+                <p className="text-[#5F5D56]">No active medications recorded yet.</p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {patientMeds.map((m) => (
+                    <div key={m.id} className="py-2 flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-medium text-[#042C53]">
+                          {m.name} {m.dose}
+                        </div>
+                        <div className="text-[11px] text-[#5F5D56]">
+                          {m.route} · {m.frequency} · {m.pharmacy}
+                        </div>
+                      </div>
+                      <StatusBadge
+                        label={m.reconciled ? 'Verified' : 'External Awaiting Verification'}
+                        tone={m.reconciled ? 'success' : 'warning'}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+              <h2 className="text-sm font-semibold text-[#042C53]">Allergies & Precautions</h2>
+              {patient.allergies.length === 0 ? (
+                <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded text-[11px] text-[#9A5B10]">
+                  <div className="font-semibold">Missing — Allergy Status Unverified</div>
+                  <div className="mt-0.5">
+                    No allergies currently documented. Explicitly verify NKDA or drug allergies with the patient before consultation.
+                  </div>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {patient.allergies.map((a) => (
+                    <div key={a.id} className="py-2 flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold text-[#B4321F]">{a.substance}</div>
+                        <div className="text-[11px] text-[#5F5D56]">
+                          {a.reaction} · {a.source} ({a.recordedDate})
+                        </div>
+                      </div>
+                      <StatusBadge label={a.verified ? 'Verified' : 'External Awaiting Verification'} tone={a.verified ? 'success' : 'warning'} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* Recent Lab Results & Imaging Summary */}
+          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#042C53]">
+                Consolidated Lab & Imaging Results ({patientLabs.length + patientImaging.length})
+              </h2>
+              <button
+                type="button"
+                onClick={() => setPatientTab('orders-results')}
+                className="text-xs text-[#185FA5] hover:underline"
+              >
+                Orders & Trends
+              </button>
+            </div>
+            {patientLabs.length === 0 && patientImaging.length === 0 ? (
+              <p className="text-[#5F5D56]">
+                No lab or imaging results on file yet. Import external diagnostic PDFs in the Data Inbox.
+              </p>
             ) : (
               <div className="divide-y divide-slate-100">
-                {patient.allergies.map((a) => (
-                  <div key={a.id} className="py-2 flex items-start justify-between gap-2">
+                {patientLabs.slice(0, 6).map((l) => (
+                  <div key={l.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <div className="font-semibold text-[#B4321F]">{a.substance}</div>
-                      <div className="text-[11px] text-[#5F5D56]">
-                        {a.reaction} · {a.source} ({a.recordedDate})
+                      <div className="font-medium text-[#042C53]">{l.testName}</div>
+                      <div className="text-[11px] font-mono text-[#5F5D56]">
+                        {l.collectionDate} · Ref {l.referenceInterval}
+                        {l.sourceLabel ? ` · ${l.sourceLabel}` : ''}
                       </div>
                     </div>
-                    <StatusBadge label={a.severity} />
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-semibold tabular-nums">
+                        {l.value} {l.unit}
+                      </span>
+                      <StatusBadge label={l.flag} />
+                      <StatusBadge
+                        label={l.status === 'Reviewed' || l.status === 'Final' ? 'Verified' : 'External Awaiting Verification'}
+                        tone={l.status === 'Reviewed' || l.status === 'Final' ? 'success' : 'warning'}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {patientImaging.map((img) => (
+                  <div key={img.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-[#042C53]">
+                        {img.modality}: {img.studyName}
+                      </div>
+                      <div className="text-[11px] text-[#5F5D56]">
+                        {img.performedAt} · {img.impression}
+                      </div>
+                    </div>
+                    <StatusBadge label={img.status} tone="blue" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Consolidated Source Documents with Original Preview */}
+          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#042C53]">
+                Consolidated Source Documents ({patientDocs.length})
+              </h2>
+              <button
+                type="button"
+                onClick={() => setPatientTab('data-inbox')}
+                className="text-xs text-[#185FA5] hover:underline"
+              >
+                Open Data Inbox
+              </button>
+            </div>
+            {patientDocs.length === 0 ? (
+              <p className="text-[#5F5D56]">No consolidated external documents attached yet.</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {patientDocs.map((doc) => (
+                  <div key={doc.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="space-y-0.5 max-w-xl">
+                      <div className="font-medium text-[#042C53] flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-[#185FA5] shrink-0" />
+                        <span>{doc.title}</span>
+                      </div>
+                      <div className="text-[11px] text-[#5F5D56]">
+                        {doc.category} · {doc.source} · {doc.date} · {doc.summary}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge
+                        label={doc.verified ? 'Verified' : 'External Awaiting Verification'}
+                        tone={doc.verified ? 'success' : 'warning'}
+                      />
+                      {doc.rawPreviewText && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewDocId(doc.id)}
+                          className="px-2 py-1 text-[11px] border border-slate-300 rounded text-[#042C53] hover:bg-slate-50"
+                        >
+                          Original Preview
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -141,133 +524,142 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
           </section>
         </div>
 
-        {/* Recent Results */}
-        <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#042C53]">Recent Lab Results</h2>
-            <button
-              type="button"
-              onClick={() => setPatientTab('orders-results')}
-              className="text-xs text-[#185FA5] hover:underline"
-            >
-              Orders & Trends
-            </button>
-          </div>
-          {patientLabs.length === 0 ? (
-            <p className="text-[#5F5D56]">No lab results recorded.</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {patientLabs.slice(0, 4).map((l) => (
-                <div key={l.id} className="py-2 flex items-center justify-between gap-2">
-                  <div>
-                    <div className="font-medium text-[#042C53]">{l.testName}</div>
-                    <div className="text-[11px] font-mono text-[#5F5D56]">
-                      {l.collectionDate} · Ref {l.referenceInterval}
+        {/* Right Column: Missing Info, Latest Vitals, Appointments, Care Team & Demographics Provenance */}
+        <div className="space-y-4">
+          {/* Missing Information Card */}
+          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#042C53]">Missing / Pending Items</h2>
+              <StatusBadge label={`${missingInfoItems.length} Open`} tone="neutral" />
+            </div>
+            {missingInfoItems.length === 0 ? (
+              <div className="text-[#0F6E50] inline-flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4" />
+                All core pre-visit sections verified.
+              </div>
+            ) : (
+              <ul className="space-y-1.5 text-[11px] text-[#444441]">
+                {missingInfoItems.map((item, i) => (
+                  <li key={i} className="flex items-start gap-1.5 p-2 bg-[#F7F7F5] rounded">
+                    <AlertTriangle className="w-3.5 h-3.5 text-[#C97A1B] shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#042C53]">Latest Vitals</h2>
+              <button
+                type="button"
+                onClick={() => setPatientTab('encounters')}
+                className="text-xs text-[#185FA5] hover:underline"
+              >
+                Flowsheet
+              </button>
+            </div>
+            {latestVitals ? (
+              <div className="grid grid-cols-2 gap-2 bg-[#F7F7F5] p-3 rounded font-mono tabular-nums">
+                <div>
+                  <div className="text-[10px] font-sans text-[#5F5D56]">BP</div>
+                  <div className="font-semibold text-[#042C53]">
+                    {latestVitals.bpSystolic}/{latestVitals.bpDiastolic}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-sans text-[#5F5D56]">Heart Rate</div>
+                  <div className="font-semibold text-[#042C53]">{latestVitals.heartRate} bpm</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-sans text-[#5F5D56]">SpO2</div>
+                  <div className="font-semibold text-[#042C53]">{latestVitals.spo2}%</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-sans text-[#5F5D56]">Weight</div>
+                  <div className="font-semibold text-[#042C53]">{latestVitals.weightKg} kg</div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[#5F5D56]">No vitals recorded yet (captured at rooming).</p>
+            )}
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+            <h2 className="text-sm font-semibold text-[#042C53]">Scheduled Appointments</h2>
+            {patientAppts.length === 0 ? (
+              <p className="text-[#5F5D56]">No upcoming appointments.</p>
+            ) : (
+              <div className="space-y-2">
+                {patientAppts.slice(0, 3).map((a) => (
+                  <div
+                    key={a.id}
+                    className="p-2.5 bg-[#F7F7F5] rounded flex items-center justify-between gap-2"
+                  >
+                    <div>
+                      <div className="font-medium text-[#042C53]">{a.type}</div>
+                      <div className="text-[11px] font-mono text-[#5F5D56]">
+                        {a.date} · {a.startTime}
+                      </div>
                     </div>
+                    <StatusBadge label={a.status} />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-semibold tabular-nums">
-                      {l.value} {l.unit}
-                    </span>
-                    <StatusBadge label={l.flag} />
-                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+            <h2 className="text-sm font-semibold text-[#042C53]">Care Team & Source Provenance</h2>
+            <div className="space-y-1.5">
+              {careTeam.map((s) => (
+                <div key={s.id} className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-[#042C53]">{s.name}</span>
+                  <span className="text-[11px] text-[#5F5D56]">{s.specialty || s.role}</span>
                 </div>
               ))}
             </div>
-          )}
-        </section>
+            {patient.customFields && (
+              <div className="pt-2 border-t border-slate-100 text-[11px] text-[#5F5D56]">
+                {state.adminConfig.customPatientFieldLabel}:{' '}
+                <span className="text-[#042C53] font-medium">
+                  {Object.values(patient.customFields)[0]}
+                </span>
+              </div>
+            )}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+              <span className="text-[#5F5D56]">Chart Sources: Local Synthetic EHR</span>
+              <button
+                type="button"
+                onClick={() =>
+                  notify('info', 'External HIE / ABDM adapters are Planned (Not Connected)')
+                }
+                className="text-[#185FA5] hover:underline"
+              >
+                Adapter Status
+              </button>
+            </div>
+          </section>
+        </div>
       </div>
 
-      {/* Right Column: Latest Vitals, Upcoming Visit, Care Team, Record Provenance */}
-      <div className="space-y-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#042C53]">Latest Vitals</h2>
-            <button
-              type="button"
-              onClick={() => setPatientTab('encounters')}
-              className="text-xs text-[#185FA5] hover:underline"
-            >
-              Flowsheet
-            </button>
-          </div>
-          {latestVitals ? (
-            <div className="grid grid-cols-2 gap-2 bg-[#F7F7F5] p-3 rounded font-mono tabular-nums">
-              <div>
-                <div className="text-[10px] font-sans text-[#5F5D56]">BP</div>
-                <div className="font-semibold text-[#042C53]">
-                  {latestVitals.bpSystolic}/{latestVitals.bpDiastolic}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] font-sans text-[#5F5D56]">Heart Rate</div>
-                <div className="font-semibold text-[#042C53]">{latestVitals.heartRate} bpm</div>
-              </div>
-              <div>
-                <div className="text-[10px] font-sans text-[#5F5D56]">SpO2</div>
-                <div className="font-semibold text-[#042C53]">{latestVitals.spo2}%</div>
-              </div>
-              <div>
-                <div className="text-[10px] font-sans text-[#5F5D56]">Weight</div>
-                <div className="font-semibold text-[#042C53]">{latestVitals.weightKg} kg</div>
-              </div>
-            </div>
-          ) : (
-            <p className="text-[#5F5D56]">No vitals recorded yet.</p>
-          )}
-        </section>
-
-        <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-          <h2 className="text-sm font-semibold text-[#042C53]">Appointments</h2>
-          {patientAppts.length === 0 ? (
-            <p className="text-[#5F5D56]">No upcoming appointments.</p>
-          ) : (
-            <div className="space-y-2">
-              {patientAppts.slice(0, 3).map((a) => (
-                <div key={a.id} className="p-2.5 bg-[#F7F7F5] rounded flex items-center justify-between gap-2">
-                  <div>
-                    <div className="font-medium text-[#042C53]">{a.type}</div>
-                    <div className="text-[11px] font-mono text-[#5F5D56]">
-                      {a.date} · {a.startTime}
-                    </div>
-                  </div>
-                  <StatusBadge label={a.status} />
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-          <h2 className="text-sm font-semibold text-[#042C53]">Care Team & Custom Field</h2>
-          <div className="space-y-1.5">
-            {careTeam.map((s) => (
-              <div key={s.id} className="flex items-center justify-between text-xs">
-                <span className="font-medium text-[#042C53]">{s.name}</span>
-                <span className="text-[11px] text-[#5F5D56]">{s.specialty || s.role}</span>
-              </div>
-            ))}
-          </div>
-          {patient.customFields && (
-            <div className="pt-2 border-t border-slate-100 text-[11px] text-[#5F5D56]">
-              {state.adminConfig.customPatientFieldLabel}:{' '}
-              <span className="text-[#042C53] font-medium">
-                {Object.values(patient.customFields)[0]}
-              </span>
-            </div>
-          )}
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-            <span className="text-[#5F5D56]">Chart Sources: Local + HIE Demo</span>
-            <button
-              type="button"
-              onClick={() => notify('info', 'External record refresh simulated (no live FHIR connection)')}
-              className="text-[#185FA5] hover:underline"
-            >
-              Refresh Sources
-            </button>
-          </div>
-        </section>
-      </div>
+      {/* Original Source Document Preview Modal */}
+      <Modal
+        open={Boolean(previewDoc)}
+        onClose={() => setPreviewDocId(null)}
+        title={previewDoc?.title || 'Source Document Preview'}
+        subtitle={
+          previewDoc ? `${previewDoc.source} · Document Date ${previewDoc.date}` : undefined
+        }
+        maxWidth="max-w-2xl"
+      >
+        {previewDoc && (
+          <pre className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md text-[11px] font-mono text-[#042C53] whitespace-pre-wrap leading-relaxed overflow-x-auto">
+            {previewDoc.rawPreviewText}
+          </pre>
+        )}
+      </Modal>
     </div>
   );
 };

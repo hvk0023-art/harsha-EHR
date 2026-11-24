@@ -102,12 +102,14 @@ interface DemoDirectorContextValue {
   ttsStatus: NeuralTTSStatusResponse;
   availableVoices: VoiceOption[];
   selectedVoiceId: string;
+  selectedTtsModel: string;
   narrationRate: NarrationRate;
   isPreviewingVoice: boolean;
   narrationDiagnostics: NarrationDiagnosticsEntry[];
   setSelectedVoiceId: (voiceId: string) => void;
+  setSelectedTtsModel: (modelId: string) => void;
   setNarrationRate: (rate: NarrationRate) => void;
-  previewVoice: (voiceId?: string) => Promise<void>;
+  previewVoice: (voiceId?: string, modelId?: string) => Promise<void>;
   stopPreview: () => void;
   setSummaryOpen: (open: boolean) => void;
   openExitConfirm: () => void;
@@ -149,6 +151,7 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [ttsStatus, setTtsStatus] = useState<NeuralTTSStatusResponse>(DEFAULT_TTS_STATUS);
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [selectedVoiceId, setSelectedVoiceIdState] = useState<string>('');
+  const [selectedTtsModel, setSelectedTtsModelState] = useState<string>('gemini-3.8-flash-lite-tts');
   const [narrationRate, setNarrationRateState] = useState<NarrationRate>(1);
   const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
   const [narrationDiagnostics, setNarrationDiagnostics] = useState<NarrationDiagnosticsEntry[]>([]);
@@ -162,6 +165,9 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const selectedVoiceIdRef = useRef(selectedVoiceId);
   selectedVoiceIdRef.current = selectedVoiceId;
+
+  const selectedTtsModelRef = useRef(selectedTtsModel);
+  selectedTtsModelRef.current = selectedTtsModel;
 
   const narrationRateRef = useRef(narrationRate);
   narrationRateRef.current = narrationRate;
@@ -289,6 +295,11 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setSelectedVoiceIdState(voiceId);
   }, []);
 
+  const setSelectedTtsModel = useCallback((modelId: string) => {
+    selectedTtsModelRef.current = modelId;
+    setSelectedTtsModelState(modelId);
+  }, []);
+
   const setNarrationRate = useCallback((rate: NarrationRate) => {
     narrationRateRef.current = rate;
     setNarrationRateState(rate);
@@ -300,8 +311,9 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [controller]);
 
   const previewVoice = useCallback(
-    async (voiceId?: string) => {
+    async (voiceId?: string, modelId?: string) => {
       const targetVoice = voiceId || selectedVoiceIdRef.current || controller.getDefaultVoiceId();
+      const targetModel = modelId || selectedTtsModelRef.current;
       if (playbackRef.current.status === 'PLAYING') {
         // Pause active tutorial cleanly so preview never overlaps tutorial speech
         pauseGateRef.current.paused = true;
@@ -314,6 +326,7 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
           sceneId: 'voice-preview',
           authoritativeCaption: VOICE_PREVIEW_SAMPLE_TEXT,
           voiceId: targetVoice,
+          model: targetModel,
           rate: narrationRateRef.current,
           enabled: true,
         });
@@ -405,7 +418,8 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (upcomingScene) {
           controller.prefetchSceneText(
             getAuthoritativeCaption(upcomingScene, pbStart.learningMode),
-            selectedVoiceIdRef.current
+            selectedVoiceIdRef.current,
+            selectedTtsModelRef.current
           );
         }
       }
@@ -415,6 +429,7 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
         sceneId: scene.sceneId,
         authoritativeCaption: authoritativeText,
         voiceId: selectedVoiceIdRef.current || controller.getDefaultVoiceId(),
+        model: selectedTtsModelRef.current,
         rate: effectiveSpeechRate,
         enabled: playbackRef.current.narrationEnabled,
       });
@@ -433,6 +448,28 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (!(await waitMs(140, token))) return;
       }
 
+      // Precondition alignment for registration modal chapters when jumping or retrying directly
+      if (scene.sceneId === 'reg-01-scheduled-context') {
+        const closeOpenRegBtn = document.querySelector(
+          'button[aria-label="Close Intelligent Scheduled Patient Registration"]'
+        ) as HTMLButtonElement | null;
+        if (closeOpenRegBtn) {
+          closeOpenRegBtn.click();
+          if (!(await waitMs(140, token))) return;
+        }
+      } else if (
+        (scene.sceneId === 'reg-02-identity-duplicate-check' ||
+          scene.sceneId === 'reg-03-intelligent-registration') &&
+        !findDemoTargetElement('intelligent-registration-modal')
+      ) {
+        const openRegBtn = await waitForDemoTargetElement('scheduled-registration-btn', 1200, token);
+        if (openRegBtn && !token.cancelled) {
+          openRegBtn.click();
+          await waitForDemoTargetElement('intelligent-registration-modal', 1500, token);
+          if (!(await waitMs(140, token))) return;
+        }
+      }
+
       setPlayback((prev) => ({ ...prev, stepPhase: 'acting' }));
 
       for (const action of actions) {
@@ -444,6 +481,8 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         if (!el) {
           if (action.requiredTarget) {
+            runningStepKeyRef.current = null;
+            controller.cancel('cancelled');
             setCursor((prev) => ({ ...prev, visible: false, clicking: false, typingPreview: null }));
             setPlayback((prev) => ({
               ...prev,
@@ -505,6 +544,7 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
             speed,
             append: action.append,
             token,
+            waitWhilePaused: () => waitWhilePaused(token),
             onFrame: (curr) => {
               setCursor((prev) => ({
                 ...prev,
@@ -563,6 +603,9 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
       };
 
       if (!check.passed) {
+        runningStepKeyRef.current = null;
+        controller.cancel('cancelled');
+        setCursor((prev) => ({ ...prev, visible: false, clicking: false, typingPreview: null }));
         setPlayback((prev) => ({
           ...prev,
           status: 'FAILED',
@@ -1334,10 +1377,12 @@ export const DemoDirectorProvider: React.FC<{ children: React.ReactNode }> = ({ 
         ttsStatus,
         availableVoices,
         selectedVoiceId,
+        selectedTtsModel,
         narrationRate,
         isPreviewingVoice,
         narrationDiagnostics,
         setSelectedVoiceId,
+        setSelectedTtsModel,
         setNarrationRate,
         previewVoice,
         stopPreview,

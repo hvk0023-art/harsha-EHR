@@ -5,6 +5,7 @@ import { formatCurrency } from '../state/domainLogic';
 import { useAppState } from '../state/AppStateContext';
 import type { Appointment } from '../types/hms';
 import { BookAppointmentModal, RegisterPatientModal } from '../components/modals/QuickActionModals';
+import { IntelligentRegistrationModal } from '../components/registration/IntelligentRegistrationModal';
 import {
   EmptyState,
   Modal,
@@ -30,6 +31,7 @@ export const FrontDeskPage: React.FC = () => {
 
   const [tab, setTab] = useState<'queue' | 'checkout' | 'kiosk'>('queue');
   const [showWalkInRegister, setShowWalkInRegister] = useState(false);
+  const [showScheduledReg, setShowScheduledReg] = useState(false);
   const [showBook, setShowBook] = useState(false);
   const [bookDefaultPatientId, setBookDefaultPatientId] = useState<string | undefined>(undefined);
   const [roomAssignTarget, setRoomAssignTarget] = useState<string | null>(null);
@@ -96,14 +98,25 @@ export const FrontDeskPage: React.FC = () => {
         title="Front Desk & Patient Access"
         subtitle={`M04 · ${currentFacility.shortName} · Pre-registration, check-in queue, rooming & check-out`}
         secondaryActions={
-          <button
-            type="button"
-            onClick={() => setShowWalkInRegister(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-[#042C53] rounded-md hover:bg-slate-50"
-          >
-            <UserPlus className="w-3.5 h-3.5 text-[#185FA5]" />
-            New Walk-in Patient
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              data-demo-target="scheduled-registration-btn"
+              onClick={() => setShowScheduledReg(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#042C53] hover:bg-[#185FA5] text-white rounded-md"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Scheduled Registration
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowWalkInRegister(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-[#042C53] rounded-md hover:bg-slate-50"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-[#185FA5]" />
+              New Walk-in Patient
+            </button>
+          </div>
         }
         primaryAction={
           <button
@@ -733,6 +746,10 @@ export const FrontDeskPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+      <IntelligentRegistrationModal
+        open={showScheduledReg}
+        onClose={() => setShowScheduledReg(false)}
+      />
     </div>
   );
 };

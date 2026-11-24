@@ -25,12 +25,16 @@ import {
   PreConsultationTab,
   PreVisitIntakeTab,
 } from './PrePostConsultationTabs';
+import { PatientDataInboxTab } from './PatientDataInboxTab';
+import { PatientKnowledgeGraphTab } from './PatientKnowledgeGraphTab';
 
 const PATIENT_TABS: { key: PatientTabKey; label: string; featured?: boolean }[] = [
   { key: 'pre-consultation', label: 'Pre-Consultation', featured: true },
   { key: 'post-consultation', label: 'Post-Consultation', featured: true },
   { key: 'pre-visit-intake', label: 'Pre-Visit Intake' },
-  { key: 'overview', label: 'Overview' },
+  { key: 'overview', label: 'Patient 360°' },
+  { key: 'data-inbox', label: 'Data Inbox', featured: true },
+  { key: 'knowledge-graph', label: 'Knowledge Graph', featured: true },
   { key: 'timeline', label: 'Timeline' },
   { key: 'history', label: 'History' },
   { key: 'encounters', label: 'Encounters' },
@@ -121,6 +125,8 @@ export const PatientWorkspace: React.FC = () => {
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                 Allergies: {patient.allergies.map((a) => a.substance).join(', ')}
               </div>
+            ) : patient.registrationStatus === 'Verified & Ready' ? (
+              <StatusBadge label="Allergies: Missing (Confirm NKDA)" tone="warning" />
             ) : (
               <StatusBadge label="NKDA (Verified)" tone="success" />
             )}
@@ -169,6 +175,10 @@ export const PatientWorkspace: React.FC = () => {
         {state.selectedPatientTab === 'post-consultation' && <PostConsultationTab patient={patient} />}
         {state.selectedPatientTab === 'pre-visit-intake' && <PreVisitIntakeTab patient={patient} />}
         {state.selectedPatientTab === 'overview' && <PatientOverviewTab patient={patient} />}
+        {state.selectedPatientTab === 'data-inbox' && <PatientDataInboxTab patient={patient} />}
+        {state.selectedPatientTab === 'knowledge-graph' && (
+          <PatientKnowledgeGraphTab patient={patient} />
+        )}
         {state.selectedPatientTab === 'timeline' && <PatientTimelineTab patient={patient} />}
         {state.selectedPatientTab === 'history' && <PatientHistoryTab patient={patient} />}
         {state.selectedPatientTab === 'encounters' && <PatientEncountersTab patient={patient} />}

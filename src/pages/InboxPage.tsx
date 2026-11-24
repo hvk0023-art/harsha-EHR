@@ -9,6 +9,7 @@ import {
   SegmentedTabs,
   StatusBadge,
 } from '../components/ui/Primitives';
+import { PatientDataInboxTab } from '../components/patient/PatientDataInboxTab';
 
 export const InboxPage: React.FC = () => {
   const {
@@ -23,7 +24,7 @@ export const InboxPage: React.FC = () => {
     notify,
   } = useAppState();
 
-  const [subTab, setSubTab] = useState<'results' | 'messages' | 'fax'>('results');
+  const [subTab, setSubTab] = useState<'results' | 'data-inbox' | 'messages' | 'fax'>('results');
   const [resultFilter, setResultFilter] = useState<'all' | 'mine' | 'critical'>('all');
   const [selectedThreadId, setSelectedThreadId] = useState<string>(state.messages[0]?.id || '');
   const [composerBody, setComposerBody] = useState('');
@@ -89,12 +90,19 @@ export const InboxPage: React.FC = () => {
             label: 'Results Queue',
             count: state.labResults.filter((l) => l.facilityId === state.currentFacilityId && l.status !== 'Reviewed').length,
           },
+          {
+            id: 'data-inbox',
+            label: 'Patient Data Inbox',
+            count: (state.dataInboxItems || []).filter((i) => i.status !== 'Verified & Consolidated' && i.status !== 'Rejected').length,
+          },
           { id: 'messages', label: 'Messages & Team Chat', count: state.messages.length },
           { id: 'fax', label: 'Fax & Exchange', count: state.faxes.length },
         ]}
         activeId={subTab}
         onChange={(id) => setSubTab(id as typeof subTab)}
       />
+
+      {subTab === 'data-inbox' && <PatientDataInboxTab />}
 
       {/* M13: Results & Clinical Inbox */}
       {subTab === 'results' && (

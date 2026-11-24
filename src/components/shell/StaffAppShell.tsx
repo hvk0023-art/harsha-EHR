@@ -337,7 +337,7 @@ export const StaffAppShell: React.FC<{
                   <button
                     type="button"
                     onClick={() => {
-                      startScenario(DEMO_DIRECTOR_SCENARIOS[0].id, { autoPlay: true, learningMode: 'watch' });
+                      startScenario('demo-01-scheduled-journey', { autoPlay: true, learningMode: 'watch' });
                       setShowScenarios(false);
                     }}
                     className="flex-1 px-2.5 py-1.5 bg-[#185FA5] hover:bg-[#042C53] text-white text-[11px] font-medium rounded"

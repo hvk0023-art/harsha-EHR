@@ -64,6 +64,7 @@ export class NeuralTTSProvider {
           neuralConfigured: Boolean(data.neuralConfigured),
           provider: data.neuralConfigured ? 'gemini-neural' : 'none',
           model: data.model || 'gemini-3.8-flash-lite-tts',
+          availableModels: Array.isArray(data.availableModels) ? data.availableModels : [],
           locale: data.locale || 'en-US',
           voices: Array.isArray(data.voices) ? data.voices : [],
           cacheEntries: data.cacheEntries,
@@ -83,11 +84,12 @@ export class NeuralTTSProvider {
 
   /**
    * Resolves a verified, playable WAV clip for complete sentences/paragraphs.
-   * Deduplicates concurrent requests and caches clips by scriptVersion + voice + locale + text.
+   * Deduplicates concurrent requests and caches clips by scriptVersion + model + voice + locale + text.
    */
   async synthesizeOrGetCached(params: {
     text: string;
     voiceId: string;
+    model?: string;
     locale?: string;
     signal?: AbortSignal;
   }): Promise<CachedAudioClip | null> {
@@ -100,10 +102,16 @@ export class NeuralTTSProvider {
     const validVoice = this.status.voices.some((v) => v.id === params.voiceId)
       ? params.voiceId
       : this.status.voices[0]?.id || 'Kore';
+    const validModel =
+      params.model &&
+      this.status.availableModels?.some((m) => m.id === params.model)
+        ? params.model
+        : this.status.model || 'gemini-3.8-flash-lite-tts';
 
     const key = buildAudioCacheKey({
       scriptVersion: NARRATION_SCRIPT_VERSION,
       provider: 'gemini-neural',
+      model: validModel,
       voiceId: validVoice,
       locale,
       text: params.text,
@@ -124,6 +132,7 @@ export class NeuralTTSProvider {
           body: JSON.stringify({
             text: params.text,
             voiceId: validVoice,
+            model: validModel,
             locale,
             scriptVersion: NARRATION_SCRIPT_VERSION,
           }),
@@ -152,6 +161,7 @@ export class NeuralTTSProvider {
         }
 
         const headerDuration = Number(resp.headers.get('X-Audio-Duration-Sec') || '0');
+        const resolvedModel = resp.headers.get('X-TTS-Model') || validModel;
         const wavBlob = blob.type.includes('wav') ? blob : new Blob([blob], { type: 'audio/wav' });
         const objectUrl = URL.createObjectURL(wavBlob);
 
@@ -161,6 +171,7 @@ export class NeuralTTSProvider {
           durationSec: Number.isFinite(headerDuration) && headerDuration > 0 ? headerDuration : 0,
           byteLength: wavBlob.size,
           voiceId: validVoice,
+          model: resolvedModel,
           provider: 'gemini-neural',
           createdAt: Date.now(),
         };
@@ -182,8 +193,8 @@ export class NeuralTTSProvider {
    * Silently pre-generates & caches the upcoming scene's clip in the background
    * so step transitions begin speaking immediately with zero lag.
    */
-  prefetch(text: string, voiceId: string): void {
+  prefetch(text: string, voiceId: string, model?: string): void {
     if (!this.isAvailable() || !text.trim()) return;
-    void this.synthesizeOrGetCached({ text, voiceId });
+    void this.synthesizeOrGetCached({ text, voiceId, model });
   }
 }
