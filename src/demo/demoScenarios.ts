@@ -25,6 +25,7 @@ import {
 } from './demoFixtures';
 import type { DemoScenarioDefinition, DemoSceneDefinition, WorkClassification } from './demoTypes';
 import { REGISTRATION_CONSOLIDATION_SCENARIO } from './registrationConsolidationScenario';
+import { AI_CLINICAL_INTELLIGENCE_SCENARIO } from './aiClinicalIntelligenceScenario';
 import { buildRoleTutorialScenarios } from './roleWorkflowRegistry';
 
 function switchView(
@@ -2068,6 +2069,7 @@ export const DEMO_DIRECTOR_SCENARIOS: DemoScenarioDefinition[] = [
     prepareState: (base) => buildCleanDemoBaseState(base),
     scenes: EXTERNAL_RECONCILIATION_SCENES,
   },
+  AI_CLINICAL_INTELLIGENCE_SCENARIO,
 ];
 
 // ============================================================================

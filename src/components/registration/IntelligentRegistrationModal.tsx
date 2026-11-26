@@ -190,7 +190,6 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
     };
 
     if (selectedExistingPatient) {
-      // Protect previously verified fields from silent overwrite!
       const mergeResult = mergeVerifiedPatientFields(
         {
           fullName: selectedExistingPatient.fullName,
@@ -461,8 +460,8 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
         className="space-y-4 text-xs"
       >
         {/* Top Scope & India-first Privacy Banner */}
-        <div className="bg-[#E6F1FB]/60 border border-[#85B7EB] rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-start gap-2 max-w-2xl">
+        <div className="bg-[#E6F1FB]/55 border border-[#85B7EB]/70 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 max-w-xl">
             <Info className="w-4 h-4 text-[#185FA5] shrink-0 mt-0.5" />
             <div className="text-[11px] text-[#042C53] leading-relaxed">
               <strong>Scheduled Visit Registration Scope:</strong> Focuses on clean identity verification, duplicate protection, and pre-visit profile readiness. Walk-in and emergency triage remain separate workflows. <strong>ABHA is optional and Aadhaar is never requested.</strong>
@@ -472,7 +471,7 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
             type="button"
             data-demo-target="reg-ai-prepare-btn"
             onClick={handleAiPrepareFromBooking}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0F6E50] hover:bg-[#042C53] text-white font-medium rounded-md transition-colors shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0F6E50] hover:bg-[#042C53] text-white font-semibold rounded-xl shadow-xs transition-colors shrink-0"
           >
             <Sparkles className="w-3.5 h-3.5" />
             AI-Prepare from Booking Packet (Simulated)
@@ -480,45 +479,47 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
         </div>
 
         {/* Step 1: Live Lookup & Duplicate Safety Check */}
-        <section className="bg-[#F7F7F5] border border-slate-200 rounded-lg p-3.5 space-y-2.5">
+        <section className="eigen-card-subtle p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <label
               htmlFor="reg-lookup-input"
-              className="text-xs font-semibold text-[#042C53] flex items-center gap-1.5"
+              className="text-xs font-semibold text-[#042C53] flex items-center gap-2"
             >
-              <Search className="w-3.5 h-3.5 text-[#185FA5]" />
-              Step 1 · Existing Patient Lookup & Duplicate Safety Check
+              <span className="w-5 h-5 rounded-full bg-[#185FA5] text-white text-[10px] font-bold inline-flex items-center justify-center">
+                1
+              </span>
+              Existing Patient Lookup & Duplicate Safety Check
             </label>
-            <span className="text-[11px] text-[#5F5D56]">
+            <span className="text-[11px] text-[#5F5D56] font-medium">
               Name-only matches are NEVER auto-merged
             </span>
           </div>
 
-          <input
-            id="reg-lookup-input"
-            data-demo-target="reg-lookup-input"
-            type="text"
-            value={lookupQuery}
-            onChange={(e) => setLookupQuery(e.target.value)}
-            placeholder="Search by full name (e.g. Aarav Mehta), MRN, phone, DOB, or optional ABHA..."
-            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs text-[#042C53]"
-          />
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-[#5F5D56] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              id="reg-lookup-input"
+              data-demo-target="reg-lookup-input"
+              type="text"
+              value={lookupQuery}
+              onChange={(e) => setLookupQuery(e.target.value)}
+              placeholder="Search by full name (e.g. Aarav Mehta), MRN, phone, DOB, or optional ABHA..."
+              className="eigen-input w-full pl-9 py-2"
+            />
+          </div>
 
           {/* Duplicate Safety Warnings */}
           {(duplicateMatches.length > 0 || directLookupResults.length > 0) && (
-            <div
-              data-demo-target="reg-duplicate-panel"
-              className="space-y-2 pt-1"
-            >
+            <div data-demo-target="reg-duplicate-panel" className="space-y-2.5 pt-1">
               {duplicateMatches.map((match) => {
                 const blockedMerge = !match.mergeAllowed;
                 return (
                   <div
                     key={match.patient.id}
-                    className={`p-3 rounded-md border flex flex-wrap items-start justify-between gap-3 ${
+                    className={`p-3.5 rounded-xl border flex flex-wrap items-start justify-between gap-3 ${
                       blockedMerge
-                        ? 'bg-amber-50 border-amber-300'
-                        : 'bg-red-50 border-red-300'
+                        ? 'bg-amber-50/85 border-amber-300'
+                        : 'bg-red-50/85 border-red-300'
                     }`}
                   >
                     <div className="space-y-1 max-w-xl">
@@ -550,12 +551,12 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
                         <button
                           type="button"
                           onClick={() => handleLoadExistingVerifiedFields(match.patient)}
-                          className="px-2.5 py-1.5 bg-[#042C53] text-white text-[11px] font-medium rounded hover:bg-[#185FA5]"
+                          className="eigen-btn-navy text-[11px] py-1.5 px-3"
                         >
                           Reuse Existing Chart (No Re-entry)
                         </button>
                       ) : (
-                        <span className="px-2.5 py-1 bg-white border border-amber-300 text-[#9A5B10] text-[11px] font-semibold rounded">
+                        <span className="px-2.5 py-1 bg-white border border-amber-300 text-[#9A5B10] text-[11px] font-semibold rounded-full">
                           Merge Blocked · Name-Only Match
                         </span>
                       )}
@@ -565,7 +566,7 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
                           onClose();
                           openPatient(match.patient.id, 'overview');
                         }}
-                        className="text-[11px] text-[#185FA5] hover:underline"
+                        className="text-[11px] font-medium text-[#185FA5] hover:underline"
                       >
                         Inspect {match.patient.mrn}
                       </button>
@@ -575,17 +576,17 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
               })}
 
               {duplicateMatches.length === 0 && directLookupResults.length > 0 && (
-                <div className="p-2.5 bg-white border border-slate-200 rounded-md space-y-1.5">
+                <div className="p-3 bg-white border border-[#042C53]/10 rounded-xl space-y-2">
                   <div className="text-[11px] font-semibold text-[#042C53]">
                     Directory Lookup Matches ({directLookupResults.length})
                   </div>
                   {directLookupResults.slice(0, 3).map((p) => (
                     <div
                       key={p.id}
-                      className="flex flex-wrap items-center justify-between gap-2 py-1 border-t border-slate-100 first:border-t-0"
+                      className="flex flex-wrap items-center justify-between gap-2 py-1.5 border-t border-[#042C53]/6 first:border-t-0"
                     >
                       <div>
-                        <span className="font-medium text-[#042C53]">{p.fullName}</span>{' '}
+                        <span className="font-semibold text-[#042C53]">{p.fullName}</span>{' '}
                         <span className="font-mono text-[11px] text-[#5F5D56]">
                           ({p.mrn} · DOB {p.dob} · {p.phone})
                         </span>
@@ -593,7 +594,7 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
                       <button
                         type="button"
                         onClick={() => handleLoadExistingVerifiedFields(p)}
-                        className="px-2 py-1 text-[11px] font-medium text-[#185FA5] bg-[#E6F1FB] rounded hover:bg-[#85B7EB]/40"
+                        className="px-2.5 py-1 text-[11px] font-medium text-[#185FA5] bg-[#E6F1FB] rounded-lg hover:bg-[#85B7EB]/40 transition-colors"
                       >
                         Reuse Verified Record
                       </button>
@@ -608,13 +609,14 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
         {/* Completeness Indicator */}
         <section
           data-demo-target="reg-completeness-meter"
-          className="bg-white border border-slate-200 rounded-lg p-3 space-y-2"
+          className="bg-white border border-[#042C53]/10 rounded-xl p-3.5 space-y-2"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <FileCheck2 className="w-4 h-4 text-[#185FA5]" />
               <span className="font-semibold text-[#042C53]">
-                Registration Completeness: {completeness.percentage}%
+                Registration Completeness:{' '}
+                <span className="font-mono tabular-nums">{completeness.percentage}%</span>
               </span>
               <StatusBadge
                 label={
@@ -626,15 +628,15 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
               />
             </div>
             {aiPreparedFields.length > 0 && (
-              <span className="text-[11px] text-[#0F6E50] font-medium">
+              <span className="text-[11px] text-[#0F6E50] font-semibold">
                 Simulated AI Draft Fields: {aiPreparedFields.length} (Verify before saving)
               </span>
             )}
           </div>
 
-          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className="w-full h-2 bg-[#F6F6F2] rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-300 ${
+              className={`h-full rounded-full transition-all duration-300 ${
                 completeness.readyForRegistration ? 'bg-[#1D9E75]' : 'bg-[#185FA5]'
               }`}
               style={{ width: `${completeness.percentage}%` }}
@@ -648,7 +650,7 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
           )}
 
           {uncertainFields.length > 0 && (
-            <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-[#9A5B10] flex items-center gap-1.5">
+            <div className="p-2.5 bg-amber-50/75 border border-amber-200 rounded-xl text-[11px] text-[#9A5B10] flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
               <span>
                 <strong>AI Uncertainty Highlight:</strong> {uncertainFields.join('; ')}
@@ -657,225 +659,230 @@ export const IntelligentRegistrationModal: React.FC<IntelligentRegistrationModal
           )}
 
           {verifiedConflictNotice.length > 0 && (
-            <div className="p-2 bg-[#E6F1FB] border border-[#85B7EB] rounded text-[11px] text-[#042C53]">
+            <div className="p-2.5 bg-[#E6F1FB]/70 border border-[#85B7EB] rounded-xl text-[11px] text-[#042C53]">
               <strong>Verified Field Protection Active:</strong> Existing verified values were preserved and NOT overwritten ({verifiedConflictNotice.map((c) => `${c.field}: kept "${c.existing}"`).join('; ')}).
             </div>
           )}
         </section>
 
         {/* Step 2: Demographics & Scheduled Visit Form */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="reg-full-name" className="block text-[11px] font-medium text-[#042C53] mb-1">
-              Full Legal Name *
-            </label>
-            <input
-              id="reg-full-name"
-              data-demo-target="reg-full-name"
-              type="text"
-              required
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="e.g. Aarav Mehta"
-              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md"
-            />
+        <section className="bg-white border border-[#042C53]/10 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#042C53]">
+            <span className="w-5 h-5 rounded-full bg-[#185FA5] text-white text-[10px] font-bold inline-flex items-center justify-center">
+              2
+            </span>
+            Demographics & Scheduled Visit Context
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label htmlFor="reg-dob" className="block text-[11px] font-medium text-[#042C53] mb-1">
-                Date of Birth *
+              <label htmlFor="reg-full-name" className="block text-[11px] font-medium text-[#042C53] mb-1">
+                Full Legal Name *
               </label>
               <input
-                id="reg-dob"
-                data-demo-target="reg-dob"
-                type="date"
-                required
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md font-mono"
-              />
-            </div>
-            <div>
-              <label htmlFor="reg-sex" className="block text-[11px] font-medium text-[#042C53] mb-1">
-                Sex *
-              </label>
-              <select
-                id="reg-sex"
-                data-demo-target="reg-sex"
-                value={sex}
-                onChange={(e) => setSex(e.target.value as 'Female' | 'Male' | 'Other')}
-                className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md bg-white"
-              >
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="reg-phone" className="block text-[11px] font-medium text-[#042C53] mb-1">
-              Mobile / Phone Number *
-            </label>
-            <input
-              id="reg-phone"
-              data-demo-target="reg-phone"
-              type="tel"
-              required
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder={targetFacility.region === 'IN' ? '+91 98452 33109' : '(555) 234-5678'}
-              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md font-mono"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="reg-abha" className="block text-[11px] font-medium text-[#042C53] mb-1">
-              ABHA ID <span className="text-[#5F5D56] font-normal">(Optional — Never Required; No Aadhaar)</span>
-            </label>
-            <input
-              id="reg-abha"
-              data-demo-target="reg-abha"
-              type="text"
-              value={abhaId}
-              onChange={(e) => setAbhaId(e.target.value)}
-              placeholder="Optional e.g. 91-4421-8890-1204 (leave blank if unavailable)"
-              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md font-mono"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label htmlFor="reg-address" className="block text-[11px] font-medium text-[#042C53] mb-1">
-              Residential Address / City *
-            </label>
-            <input
-              id="reg-address"
-              data-demo-target="reg-address"
-              type="text"
-              required
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Street address, neighbourhood, city, postal code"
-              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label htmlFor="reg-visit-reason" className="block text-[11px] font-medium text-[#042C53] mb-1">
-              Scheduled Visit Reason & Pre-Visit Context *
-            </label>
-            <input
-              id="reg-visit-reason"
-              data-demo-target="reg-visit-reason"
-              type="text"
-              required
-              value={chiefConcern}
-              onChange={(e) => setChiefConcern(e.target.value)}
-              placeholder="e.g. Scheduled diabetes & metabolic review (patient brought outside lab PDFs)"
-              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="reg-provider" className="block text-[11px] font-medium text-[#042C53] mb-1">
-              Scheduled Clinician & Slot ({TODAY_DATE})
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <select
-                id="reg-provider"
-                value={providerId}
-                onChange={(e) => setProviderId(e.target.value)}
-                className="col-span-2 px-2.5 py-1.5 border border-slate-300 rounded-md bg-white"
-              >
-                {state.staff
-                  .filter((s) => s.role === 'Clinician' || s.role === 'Nurse Practitioner')
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.specialty || s.role})
-                    </option>
-                  ))}
-              </select>
-              <input
-                type="time"
-                aria-label="Scheduled slot time"
-                value={appointmentTime}
-                onChange={(e) => setAppointmentTime(e.target.value)}
-                className="px-2 py-1.5 border border-slate-300 rounded-md font-mono"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="reg-emergency-contact" className="block text-[11px] font-medium text-[#042C53] mb-1">
-              Emergency Contact (Recommended)
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                id="reg-emergency-contact"
+                id="reg-full-name"
+                data-demo-target="reg-full-name"
                 type="text"
-                value={emergencyContactName}
-                onChange={(e) => setEmergencyContactName(e.target.value)}
-                placeholder="Contact name"
-                className="px-2.5 py-1.5 border border-slate-300 rounded-md"
-              />
-              <input
-                type="tel"
-                aria-label="Emergency contact phone"
-                value={emergencyContactPhone}
-                onChange={(e) => setEmergencyContactPhone(e.target.value)}
-                placeholder="Contact phone"
-                className="px-2.5 py-1.5 border border-slate-300 rounded-md font-mono"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="e.g. Aarav Mehta"
+                className="eigen-input w-full"
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label htmlFor="reg-dob" className="block text-[11px] font-medium text-[#042C53] mb-1">
+                  Date of Birth *
+                </label>
+                <input
+                  id="reg-dob"
+                  data-demo-target="reg-dob"
+                  type="date"
+                  required
+                  value={dob}
+                  onChange={(e) => setDob(e.target.value)}
+                  className="eigen-input w-full font-mono"
+                />
+              </div>
+              <div>
+                <label htmlFor="reg-sex" className="block text-[11px] font-medium text-[#042C53] mb-1">
+                  Sex *
+                </label>
+                <select
+                  id="reg-sex"
+                  data-demo-target="reg-sex"
+                  value={sex}
+                  onChange={(e) => setSex(e.target.value as 'Female' | 'Male' | 'Other')}
+                  className="eigen-input w-full"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="reg-phone" className="block text-[11px] font-medium text-[#042C53] mb-1">
+                Mobile / Phone Number *
+              </label>
+              <input
+                id="reg-phone"
+                data-demo-target="reg-phone"
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder={targetFacility.region === 'IN' ? '+91 98452 33109' : '(555) 234-5678'}
+                className="eigen-input w-full font-mono"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="reg-abha" className="block text-[11px] font-medium text-[#042C53] mb-1">
+                ABHA ID <span className="text-[#5F5D56] font-normal">(Optional — Never Required; No Aadhaar)</span>
+              </label>
+              <input
+                id="reg-abha"
+                data-demo-target="reg-abha"
+                type="text"
+                value={abhaId}
+                onChange={(e) => setAbhaId(e.target.value)}
+                placeholder="Optional e.g. 91-4421-8890-1204 (leave blank if unavailable)"
+                className="eigen-input w-full font-mono"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label htmlFor="reg-address" className="block text-[11px] font-medium text-[#042C53] mb-1">
+                Residential Address / City *
+              </label>
+              <input
+                id="reg-address"
+                data-demo-target="reg-address"
+                type="text"
+                required
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Street address, neighbourhood, city, postal code"
+                className="eigen-input w-full"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label htmlFor="reg-visit-reason" className="block text-[11px] font-medium text-[#042C53] mb-1">
+                Scheduled Visit Reason & Pre-Visit Context *
+              </label>
+              <input
+                id="reg-visit-reason"
+                data-demo-target="reg-visit-reason"
+                type="text"
+                required
+                value={chiefConcern}
+                onChange={(e) => setChiefConcern(e.target.value)}
+                placeholder="e.g. Scheduled diabetes & metabolic review (patient brought outside lab PDFs)"
+                className="eigen-input w-full"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="reg-provider" className="block text-[11px] font-medium text-[#042C53] mb-1">
+                Scheduled Clinician & Slot ({TODAY_DATE})
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <select
+                  id="reg-provider"
+                  value={providerId}
+                  onChange={(e) => setProviderId(e.target.value)}
+                  className="eigen-input col-span-2"
+                >
+                  {state.staff
+                    .filter((s) => s.role === 'Clinician' || s.role === 'Nurse Practitioner')
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.specialty || s.role})
+                      </option>
+                    ))}
+                </select>
+                <input
+                  type="time"
+                  aria-label="Scheduled slot time"
+                  value={appointmentTime}
+                  onChange={(e) => setAppointmentTime(e.target.value)}
+                  className="eigen-input font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="reg-emergency-contact" className="block text-[11px] font-medium text-[#042C53] mb-1">
+                Emergency Contact (Recommended)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  id="reg-emergency-contact"
+                  type="text"
+                  value={emergencyContactName}
+                  onChange={(e) => setEmergencyContactName(e.target.value)}
+                  placeholder="Contact name"
+                  className="eigen-input"
+                />
+                <input
+                  type="tel"
+                  aria-label="Emergency contact phone"
+                  value={emergencyContactPhone}
+                  onChange={(e) => setEmergencyContactPhone(e.target.value)}
+                  placeholder="Contact phone"
+                  className="eigen-input font-mono"
+                />
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
 
         {/* Step 3: Verifier Attribution Gate */}
-        <div className="bg-[#F7F7F5] border border-slate-200 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3">
-          <label className="flex items-start gap-2 cursor-pointer text-[#042C53]">
+        <div className="eigen-card-subtle p-3.5 flex flex-wrap items-center justify-between gap-3">
+          <label className="flex items-start gap-2.5 cursor-pointer text-[#042C53]">
             <input
               type="checkbox"
               data-demo-target="reg-verify-checkbox"
               checked={humanVerified}
               onChange={(e) => setHumanVerified(e.target.checked)}
-              className="mt-0.5"
+              className="mt-0.5 rounded border-slate-300 text-[#185FA5] focus:ring-[#185FA5]"
             />
             <span className="text-[11px] leading-snug">
               <strong>Human Verification Attestation ({currentActor} · {state.currentRole}):</strong>{' '}
               I confirm patient identity (Name + DOB + Mobile) has been verified, no name-only duplicate merge was performed, and AI-prepared fields were reviewed.
             </span>
           </label>
-          <span className="inline-flex items-center gap-1 text-[11px] text-[#0F6E50] font-medium shrink-0">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-[#0F6E50] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full font-semibold shrink-0">
             <UserCheck className="w-3.5 h-3.5" />
             Audited on save
           </span>
         </div>
 
         {formError && (
-          <div className="p-2.5 bg-red-50 border border-red-200 text-[#B4321F] rounded-md text-xs flex items-center gap-1.5">
+          <div className="p-3 bg-red-50 border border-red-200 text-[#B4321F] rounded-xl text-xs flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             {formError}
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
-          <span className="text-[11px] text-[#5F5D56] inline-flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#042C53]/8">
+          <span className="text-[11px] text-[#5F5D56] inline-flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-[#0F6E50]" />
             Stops cleanly at Registration Completed → Opens Patient 360° Profile
           </span>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1.5 border border-slate-300 rounded-md text-[#042C53] hover:bg-slate-50"
-            >
+            <button type="button" onClick={onClose} className="eigen-btn-secondary text-xs">
               Cancel
             </button>
             <button
               type="submit"
               data-demo-target="reg-submit-btn"
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-[#042C53] hover:bg-[#185FA5] text-white font-semibold rounded-md transition-colors"
+              className="eigen-btn-navy text-xs font-semibold px-4 py-2"
             >
               {selectedExistingPatient ? (
                 <>

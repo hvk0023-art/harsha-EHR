@@ -432,9 +432,9 @@ export const DemoDirectorOverlay: React.FC = () => {
           data-demo-voice-panel="true"
           role="dialog"
           aria-label="Trainer Voice Settings"
-          className="fixed bottom-32 right-4 z-[69] w-80 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden text-xs"
+          className="fixed bottom-32 right-4 z-[69] w-80 max-w-[calc(100vw-2rem)] bg-white border border-[#042C53]/12 rounded-2xl shadow-2xl overflow-hidden text-xs"
         >
-          <div className="px-3 py-2 bg-[#042C53] text-white flex items-center justify-between">
+          <div className="px-3.5 py-2.5 bg-[#042C53] text-white flex items-center justify-between">
             <span className="font-semibold flex items-center gap-1.5">
               <Volume2 className="w-3.5 h-3.5 text-[#85B7EB]" />
               Trainer Voice Settings
@@ -645,9 +645,9 @@ export const DemoDirectorOverlay: React.FC = () => {
       {chaptersOpen && (
         <div
           data-demo-chapters="true"
-          className="fixed bottom-32 right-4 z-[68] w-80 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden text-xs"
+          className="fixed bottom-32 right-4 z-[68] w-80 max-w-[calc(100vw-2rem)] bg-white border border-[#042C53]/12 rounded-2xl shadow-2xl overflow-hidden text-xs"
         >
-          <div className="px-3 py-2 bg-[#042C53] text-white flex items-center justify-between">
+          <div className="px-3.5 py-2.5 bg-[#042C53] text-white flex items-center justify-between">
             <span className="font-semibold truncate">Steps · {activeScenario.title}</span>
             <button
               type="button"
@@ -704,7 +704,7 @@ export const DemoDirectorOverlay: React.FC = () => {
         ref={barRef}
         aria-label="EigenH Guided Demo Academy Trainer Console"
         data-demo-director-bar="true"
-        className="fixed bottom-2 left-1/2 -translate-x-1/2 z-[66] w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)] max-w-5xl bg-white/95 backdrop-blur border border-slate-300 rounded-xl shadow-xl px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs space-y-1 sm:space-y-1.5 max-h-[42dvh] overflow-y-auto"
+        className="fixed bottom-2.5 left-1/2 -translate-x-1/2 z-[66] w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)] max-w-5xl bg-white/95 backdrop-blur-md border border-[#042C53]/12 rounded-2xl shadow-[0_12px_32px_rgba(4,44,83,0.14)] px-3 sm:px-4 py-2 sm:py-2.5 text-xs space-y-1.5 max-h-[42dvh] overflow-y-auto"
       >
         {/* Row 1: Mode, Role/Screen, Step Counter, Work Classification, Status & Exit */}
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -785,12 +785,12 @@ export const DemoDirectorOverlay: React.FC = () => {
         {!minimized && playback.captionsEnabled && (
           <div
             data-demo-caption-bar="true"
-            className={`rounded-md px-2.5 py-1.5 border text-[11px] leading-snug ${
+            className={`rounded-xl px-3 py-2 border text-[11px] leading-snug ${
               playback.errorMessage
                 ? 'bg-red-50 border-red-200 text-[#B4321F]'
                 : isPracticeWaiting
                 ? 'bg-amber-50/90 border-amber-200 text-[#042C53]'
-                : 'bg-[#F7F7F5] border-slate-200/80 text-[#042C53]'
+                : 'bg-[#FAF9F6] border-[#042C53]/8 text-[#042C53]'
             }`}
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -1081,32 +1081,32 @@ export const DemoDirectorOverlay: React.FC = () => {
         {isRegistrationDemo && registrationSummary ? (
           <div data-demo-summary-modal="true" data-demo-summary-kind="registration-bengaluru" className="space-y-4 text-xs">
             {/* Registration-Specific Measured Evidence Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="eigen-card-subtle p-3.5">
                 <div className="text-[11px] text-[#5F5D56]">Verified Chapters</div>
-                <div className="text-lg font-bold font-mono tabular-nums text-[#0F6E50]">
+                <div className="text-lg font-bold font-mono tabular-nums text-[#0F6E50] mt-0.5">
                   {efficiencySummary.passedAssertions}/{efficiencySummary.totalScenesExecuted}
                 </div>
               </div>
-              <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+              <div className="eigen-card-subtle p-3.5">
                 <div className="text-[11px] text-[#5F5D56]">Verified Profile Fields</div>
-                <div className="text-lg font-bold font-mono tabular-nums text-[#042C53]">
+                <div className="text-lg font-bold font-mono tabular-nums text-[#042C53] mt-0.5">
                   {registrationSummary.verifiedFields.length}
                 </div>
                 <div className="text-[10px] text-[#5F5D56] truncate">
                   By {registrationSummary.verifiedBy}
                 </div>
               </div>
-              <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+              <div className="eigen-card-subtle p-3.5">
                 <div className="text-[11px] text-[#5F5D56]">Extracted Data Reviewed</div>
-                <div className="text-lg font-bold font-mono tabular-nums text-[#185FA5]">
+                <div className="text-lg font-bold font-mono tabular-nums text-[#185FA5] mt-0.5">
                   {registrationSummary.acceptedExtractedFields.length} / {registrationSummary.rejectedExtractedFields.length}
                 </div>
                 <div className="text-[10px] text-[#5F5D56]">Accepted / Rejected</div>
               </div>
-              <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+              <div className="eigen-card-subtle p-3.5">
                 <div className="text-[11px] text-[#5F5D56]">Source Docs / Encounters</div>
-                <div className="text-lg font-bold font-mono tabular-nums text-[#042C53]">
+                <div className="text-lg font-bold font-mono tabular-nums text-[#042C53] mt-0.5">
                   {registrationSummary.sourceDocuments.length} / {registrationSummary.encountersCreated}
                 </div>
                 <div className="text-[10px] text-[#0F6E50]">Stops cleanly pre-visit</div>
@@ -1350,28 +1350,28 @@ export const DemoDirectorOverlay: React.FC = () => {
         ) : (
         <div data-demo-summary-modal="true" data-demo-summary-kind="clinical-journey" className="space-y-4 text-xs">
           {/* Measured Workflow Evidence Grid (No Fabricated Percentages) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="eigen-card-subtle p-3.5">
               <div className="text-[11px] text-[#5F5D56]">Verified Steps</div>
-              <div className="text-lg font-bold font-mono tabular-nums text-[#0F6E50]">
+              <div className="text-lg font-bold font-mono tabular-nums text-[#0F6E50] mt-0.5">
                 {efficiencySummary.passedAssertions}/{efficiencySummary.totalScenesExecuted}
               </div>
             </div>
-            <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+            <div className="eigen-card-subtle p-3.5">
               <div className="text-[11px] text-[#5F5D56]">AI-Prepared / Human</div>
-              <div className="text-lg font-bold font-mono tabular-nums text-[#042C53]">
+              <div className="text-lg font-bold font-mono tabular-nums text-[#042C53] mt-0.5">
                 {efficiencySummary.aiDraftSteps} / {efficiencySummary.humanVerifiedSteps}
               </div>
             </div>
-            <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+            <div className="eigen-card-subtle p-3.5">
               <div className="text-[11px] text-[#5F5D56]">Recorded Handoffs</div>
-              <div className="text-lg font-bold font-mono tabular-nums text-[#185FA5]">
+              <div className="text-lg font-bold font-mono tabular-nums text-[#185FA5] mt-0.5">
                 {efficiencySummary.roleHandoffsRecorded}
               </div>
             </div>
-            <div className="p-3 bg-[#F7F7F5] border border-slate-200 rounded-md">
+            <div className="eigen-card-subtle p-3.5">
               <div className="text-[11px] text-[#5F5D56]">Approved / Audit Events</div>
-              <div className="text-lg font-bold font-mono tabular-nums text-[#042C53]">
+              <div className="text-lg font-bold font-mono tabular-nums text-[#042C53] mt-0.5">
                 {efficiencySummary.approvedClinicalActions} / {efficiencySummary.auditEventsGenerated}
               </div>
             </div>

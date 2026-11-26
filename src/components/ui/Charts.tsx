@@ -87,8 +87,8 @@ export const SimpleLineChart: React.FC<{
   referenceMin?: number;
   height?: number;
   color?: string;
-}> = ({ points, unit = '', referenceMax, referenceMin, height = 170, color = '#185FA5' }) => {
-  if (points.length === 0) {
+}> = ({ points = [], unit = '', referenceMax, referenceMin, height = 170, color = '#185FA5' }) => {
+  if (!points || points.length === 0) {
     return <div className="text-xs text-[#5F5D56] py-6 text-center">No numeric trend points available.</div>;
   }
   const values = points.map((p) => p.value);

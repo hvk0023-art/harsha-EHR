@@ -5,10 +5,13 @@ import {
   Check,
   CheckCircle2,
   ClipboardCheck,
+  Edit3,
   FileText,
   HelpCircle,
+  Loader2,
   Lock,
   Mic,
+  RefreshCw,
   ShieldAlert,
   Sparkles,
   Square,
@@ -16,6 +19,20 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
+import {
+  clinicalAiAuditService,
+  generateAmbientScribeV2WithClinicalAi,
+  prepareClinicalActionsWithClinicalAi,
+  preparePreConsultationBriefWithClinicalAi,
+} from '../../ai/clinicalAiService';
+import type {
+  ActionComposerOutput,
+  AmbientScribeV2Output,
+  ClinicalAIExecutionMode,
+  ClinicalAIResponse,
+  PreConsultationBriefOutput,
+} from '../../ai/clinicalAiTypes';
+import { buildPermittedPatientContext, resolveGroundedSources } from '../../ai/patientContextBuilder';
 import { TODAY_DATE } from '../../data/seedData';
 import { DEMO_AMBIENT_TRANSCRIPT } from '../../demo/demoFixtures';
 import { useAppState } from '../../state/AppStateContext';
@@ -28,19 +45,43 @@ import {
 } from '../../state/clinicalIntelligence';
 import { canOrderOrPrescribe, canSignClinicalNote } from '../../state/permissions';
 import type { Patient } from '../../types/hms';
+import {
+  ClinicalAiErrorBanner,
+  ClinicalAiModeToggle,
+  ClinicalAiProvenanceBar,
+  useClinicalAiFlags,
+} from '../ai/ClinicalAiControls';
 import { StatusBadge } from '../ui/Primitives';
+
+const SYNTHETIC_TRANSCRIPT_PRESETS: { id: string; label: string; text: string }[] = [
+  {
+    id: 'ckd-htn',
+    label: 'CKD Stage 3a & Elevated BP (Default)',
+    text: DEMO_AMBIENT_TRANSCRIPT,
+  },
+  {
+    id: 'afib-inr',
+    label: 'Atrial Fibrillation & Elevated INR',
+    text: `Clinician: Good morning. Tell me how your heart rhythm and energy have been since last visit.\nPatient: I felt brief palpitations twice this week and noticed minor gum brushing bleeding after my Warfarin dose.\nClinician: Your pulse is irregular at 78 bpm and recent INR was 3.4, slightly above target 2.0-3.0. No melena, hematuria, or syncope.\nClinician: Plan is to hold tonight's Warfarin dose as a draft recommendation for verification, order a repeat STAT PT/INR lab in 3 days, refer to Cardiology Anticoagulation Clinic, and schedule a 1-week follow-up.\nPatient: Understood, I will watch for any unusual bruising or bleeding and call right away.`,
+  },
+  {
+    id: 't2dm-neuropathy',
+    label: 'Type 2 Diabetes & Foot Neuropathy',
+    text: `Clinician: How have your fasting sugars and foot tingling been over the past month?\nPatient: Morning fasting glucose averages 168 mg/dL and I have burning tingling in both toes at night.\nClinician: Monofilament testing shows reduced protective sensation bilaterally at the plantar first metatarsal head. No foot ulcerations.\nClinician: Plan is to order HbA1c and Lipid Panel, draft Gabapentin 100 mg PO at bedtime for neuropathic pain review, create a Podiatry referral, and schedule a 4-week diabetes follow-up.`,
+  },
+];
 
 const ProvenanceTag: React.FC<{ kind: ProvenanceKind }> = ({ kind }) => {
   const tone =
     kind === 'Recorded Fact'
-      ? 'text-[#0F6E50] bg-emerald-50 border-emerald-200'
+      ? 'text-[#0F6E50] bg-[#E9F7F1] border-[#1D9E75]/30'
       : kind === 'Derived Calculation'
-      ? 'text-[#185FA5] bg-[#E6F1FB] border-[#85B7EB]/60'
+      ? 'text-[#185FA5] bg-[#E6F1FB] border-[#85B7EB]/55'
       : kind === 'Simulated AI Suggestion'
-      ? 'text-[#042C53] bg-slate-100 border-slate-300'
-      : 'text-[#9A5B10] bg-amber-50 border-amber-200';
+      ? 'text-[#042C53] bg-[#F1EFE8] border-[#042C53]/12'
+      : 'text-[#9A5B10] bg-[#FEF5E7] border-[#C97A1B]/30';
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded border ${tone}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full border ${tone}`}>
       {kind}
     </span>
   );
@@ -58,7 +99,16 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
     verifyIntakeExtractedItem,
     verifyExternalCondition,
     recordClinicalHandoff,
+    recordClinicalAiAudit,
+    notify,
   } = useAppState();
+  const { flags, updateFlags, serverStatus } = useClinicalAiFlags();
+
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [briefResponse, setBriefResponse] = useState<ClinicalAIResponse<PreConsultationBriefOutput> | null>(null);
+  const [briefDecision, setBriefDecision] = useState<'Draft — Review Required' | 'Verified & Approved' | 'Edited & Approved' | 'Rejected'>('Draft — Review Required');
+  const [editingBrief, setEditingBrief] = useState(false);
+  const [editedBriefHeadline, setEditedBriefHeadline] = useState('');
 
   const readiness = useMemo(() => buildPreVisitReadiness(state, patient.id), [state, patient.id]);
   const whatMatters = useMemo(() => buildWhatMattersToday(state, patient.id), [state, patient.id]);
@@ -66,6 +116,68 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
   const latestIntake = (state.preVisitIntakes || []).find((i) => i.patientId === patient.id);
   const vitals = state.vitals.filter((v) => v.patientId === patient.id);
   const patientHandoffs = (state.handoffs || []).filter((h) => h.patientId === patient.id);
+
+  const sourceCatalog = useMemo(() => {
+    const res = buildPermittedPatientContext(state, {
+      patientId: patient.id,
+      role: state.currentRole,
+      userId: state.currentUserId,
+      facilityId: state.currentFacilityId,
+    });
+    return res.ok ? res.context.sourceCatalog : {};
+  }, [state, patient.id]);
+
+  const handlePrepareBrief = async (modeOverride?: ClinicalAIExecutionMode) => {
+    setBriefLoading(true);
+    const resp = await preparePreConsultationBriefWithClinicalAi(state, patient.id, {
+      modeOverride,
+      flags,
+    });
+    setBriefResponse(resp);
+    setBriefDecision('Draft — Review Required');
+    setEditingBrief(false);
+    setEditedBriefHeadline(resp.data?.whatMattersTodayHeadline || '');
+    setBriefLoading(false);
+    if (resp.ok && resp.data) {
+      recordClinicalAiAudit(
+        `Prepare Pre-Consultation Brief (${resp.executionMode === 'live-ai' ? 'Live AI' : 'Deterministic Demo'})`,
+        'Patient',
+        patient.id,
+        `Model ${resp.modelId} (${resp.requestId}) generated ${resp.data.sections.length} grounded section(s); review required`
+      );
+    } else if (resp.error) {
+      notify('error', resp.error.message);
+    }
+  };
+
+  const handleBriefReviewAction = (decision: 'Accepted' | 'Edited' | 'Rejected') => {
+    if (!briefResponse) return;
+    const actor = state.staff.find((s) => s.id === state.currentUserId)?.name || state.currentRole;
+    const nextState: 'Verified & Approved' | 'Edited & Approved' | 'Rejected' =
+      decision === 'Accepted'
+        ? 'Verified & Approved'
+        : decision === 'Edited'
+        ? 'Edited & Approved'
+        : 'Rejected';
+    setBriefDecision(nextState);
+    setEditingBrief(false);
+    clinicalAiAuditService.updateReview(briefResponse.requestId, {
+      reviewState: nextState,
+      humanReviewDecision: `${decision} by ${actor} (${state.currentRole})${
+        decision === 'Edited' && editedBriefHeadline ? ` — ${editedBriefHeadline}` : ''
+      }`,
+    });
+    recordClinicalAiAudit(
+      `Pre-Consultation Brief ${decision}`,
+      'Patient',
+      patient.id,
+      `${actor} (${state.currentRole}) marked brief ${briefResponse.requestId} as ${decision}`
+    );
+    notify(
+      decision === 'Rejected' ? 'warning' : 'success',
+      `Pre-Consultation Brief marked ${decision} by ${actor}`
+    );
+  };
 
   const groupedSections = useMemo(() => {
     const order = [
@@ -85,25 +197,47 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
   }, [whatMatters]);
 
   return (
-    <div className="space-y-4 text-xs">
+    <div className="space-y-5 text-xs">
       {/* Top Clinical Orientation Bar */}
-      <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#185FA5]" />
-            <h2 className="text-sm font-semibold text-[#042C53]">
+      <div className="eigen-card p-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="w-9 h-9 rounded-xl bg-[#E6F1FB] text-[#185FA5] flex items-center justify-center shrink-0">
+            <Sparkles className="w-4 h-4" />
+          </span>
+          <div>
+            <h2 className="font-display text-base font-semibold text-[#042C53]">
               Pre-Consultation Clinical Summary
             </h2>
+            <p className="text-xs text-[#5F5D56] mt-0.5 leading-relaxed">
+              Source-linked synthesis clearly distinguishing recorded facts, derived calculations, AI-prepared drafts, and missing data.
+            </p>
           </div>
-          <p className="text-[11px] text-[#5F5D56] mt-0.5">
-            Source-linked synthesis distinguishing recorded facts, derived calculations, simulated AI suggestions, and unavailable data.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ClinicalAiModeToggle
+            mode={flags.executionMode}
+            onChangeMode={(m) => updateFlags({ executionMode: m })}
+            serverConfigured={serverStatus?.configured}
+            compact
+          />
+          <button
+            type="button"
+            data-demo-target="prepare-intel-brief-btn"
+            disabled={briefLoading || !flags.preConsultationBrief}
+            onClick={() => void handlePrepareBrief()}
+            className="eigen-btn-navy px-3.5 py-2 text-xs disabled:opacity-50"
+          >
+            {briefLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            {briefLoading ? 'Preparing Brief...' : 'Prepare Patient Intelligence Brief'}
+          </button>
           <button
             type="button"
             onClick={() => setPatientTab('pre-visit-intake')}
-            className="px-3 py-1.5 border border-slate-300 text-[#042C53] font-medium rounded-md hover:bg-slate-50"
+            className="eigen-btn-secondary px-3.5 py-2 text-xs"
           >
             Open Pre-Visit Intake
           </button>
@@ -111,7 +245,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
             type="button"
             data-demo-target="start-consult-scribe-btn"
             onClick={() => setPatientTab('post-consultation')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#185FA5] hover:bg-[#042C53] text-white font-medium rounded-md"
+            className="eigen-btn-primary px-4 py-2 text-xs"
           >
             Start Consultation & Scribe
             <ArrowRight className="w-3.5 h-3.5" />
@@ -119,20 +253,252 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
         </div>
       </div>
 
+      {/* Phase 2 Real AI Pre-Consultation Intelligence Brief Panel */}
+      {briefResponse && (
+        <section
+          data-demo-target="ai-pre-consult-brief-panel"
+          className="eigen-card p-5 space-y-4 border-[#185FA5]/25"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#042C53]/[0.07] pb-3">
+            <div>
+              <h3 className="font-display text-sm font-semibold text-[#042C53] flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#185FA5]" />
+                AI-Prepared Patient Intelligence Brief
+              </h3>
+              <p className="text-[11px] text-[#5F5D56] mt-0.5">
+                Grounded exclusively in permitted records for {patient.fullName}. Click any source chip to inspect original EHR evidence.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {briefResponse.ok && briefDecision !== 'Rejected' && (
+                <>
+                  <button
+                    type="button"
+                    data-demo-target="brief-accept-btn"
+                    onClick={() => handleBriefReviewAction('Accepted')}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#0F6E50] hover:bg-[#042C53] text-white rounded-lg text-[11px] font-semibold"
+                  >
+                    <Check className="w-3 h-3" />
+                    Accept Brief
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingBrief((v) => !v)}
+                    className="eigen-btn-secondary px-2.5 py-1.5 text-[11px]"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBriefReviewAction('Rejected')}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-[#B4321F]/25 text-[#B4321F] rounded-lg text-[11px] font-medium hover:bg-[#FDF0EE]"
+                  >
+                    <X className="w-3 h-3" />
+                    Reject
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                disabled={briefLoading}
+                onClick={() => void handlePrepareBrief()}
+                className="eigen-btn-secondary px-2.5 py-1.5 text-[11px]"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Regenerate
+              </button>
+            </div>
+          </div>
+
+          {briefResponse.ok && (
+            <ClinicalAiProvenanceBar response={briefResponse} reviewStatusOverride={briefDecision} />
+          )}
+
+          {!briefResponse.ok && (
+            <ClinicalAiErrorBanner
+              response={briefResponse}
+              onRetry={() => void handlePrepareBrief('live-ai')}
+              onSwitchDeterministic={() => void handlePrepareBrief('deterministic-demo')}
+            />
+          )}
+
+          {briefResponse.ok && briefResponse.data && briefDecision !== 'Rejected' && (
+            <div className="space-y-4">
+              {/* Executive Headline + What Matters Today Bullets */}
+              <div className="p-3.5 rounded-xl bg-[#EFF6FC]/65 border border-[#85B7EB]/50 space-y-2.5">
+                {editingBrief ? (
+                  <div className="space-y-2">
+                    <label htmlFor="brief-edit-headline" className="text-[11px] font-semibold text-[#042C53]">
+                      Edit Clinician Brief Headline
+                    </label>
+                    <input
+                      id="brief-edit-headline"
+                      type="text"
+                      value={editedBriefHeadline}
+                      onChange={(e) => setEditedBriefHeadline(e.target.value)}
+                      className="eigen-input w-full"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingBrief(false)}
+                        className="eigen-btn-secondary px-2.5 py-1 text-[11px]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBriefReviewAction('Edited')}
+                        className="eigen-btn-primary px-3 py-1 text-[11px]"
+                      >
+                        Save &amp; Approve Edit
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="font-semibold text-[#042C53] text-xs">
+                    {editedBriefHeadline || briefResponse.data.whatMattersTodayHeadline}
+                  </div>
+                )}
+
+                <ul className="space-y-2">
+                  {briefResponse.data.whatMattersTodayBullets.map((b, idx) => {
+                    const resolved = resolveGroundedSources(b.sourceIds, sourceCatalog).resolved;
+                    return (
+                      <li key={idx} className="flex flex-wrap items-start justify-between gap-2 text-xs text-[#042C53]">
+                        <span className="flex-1 min-w-0 leading-relaxed">• {b.text}</span>
+                        <div className="flex flex-wrap gap-1 shrink-0">
+                          {resolved.map((src) => (
+                            <button
+                              key={src.sourceId}
+                              type="button"
+                              onClick={() => setPatientTab(src.targetTab)}
+                              className="px-2 py-0.5 text-[10px] font-medium bg-white border border-[#185FA5]/30 text-[#185FA5] hover:bg-[#E6F1FB] rounded-md"
+                            >
+                              {src.label} →
+                            </button>
+                          ))}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              {/* Source-Linked Structured Sections */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {briefResponse.data.sections.map((sec) => {
+                  const resolved = resolveGroundedSources(sec.sourceIds, sourceCatalog).resolved;
+                  return (
+                    <div
+                      key={sec.id}
+                      className="p-3.5 rounded-xl bg-white border border-[#042C53]/10 space-y-1.5"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#5F5D56]">
+                          {sec.section}
+                        </span>
+                        <StatusBadge
+                          label={sec.evidenceType}
+                          tone={
+                            sec.evidenceType === 'Missing / Conflict Alert'
+                              ? 'warning'
+                              : sec.evidenceType === 'Source-Grounded Fact'
+                              ? 'success'
+                              : 'blue'
+                          }
+                        />
+                      </div>
+                      <div className="font-semibold text-[#042C53]">{sec.headline}</div>
+                      <p className="text-[11px] text-[#444441] leading-relaxed">{sec.detail}</p>
+                      {resolved.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {resolved.map((src) => (
+                            <button
+                              key={src.sourceId}
+                              type="button"
+                              onClick={() => setPatientTab(src.targetTab)}
+                              className="px-2 py-0.5 text-[10px] font-mono text-[#185FA5] bg-[#F8F8F5] hover:bg-[#E6F1FB] border border-[#042C53]/10 rounded"
+                            >
+                              {src.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Explicit Missing / Conflicting / Uncertainty Indicators */}
+              {(briefResponse.data.missingClinicalData.length > 0 ||
+                briefResponse.data.conflictingInformation.length > 0 ||
+                briefResponse.data.uncertaintyIndicators.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {briefResponse.data.missingClinicalData.length > 0 && (
+                    <div className="p-3 rounded-xl bg-[#FEF5E7] border border-[#C97A1B]/30 text-[#9A5B10] space-y-1">
+                      <div className="font-semibold text-[11px] flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        Missing Clinical Data
+                      </div>
+                      <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
+                        {briefResponse.data.missingClinicalData.map((m, i) => (
+                          <li key={i}>{m}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {briefResponse.data.conflictingInformation.length > 0 && (
+                    <div className="p-3 rounded-xl bg-[#FDF0EE] border border-[#B4321F]/25 text-[#B4321F] space-y-1">
+                      <div className="font-semibold text-[11px] flex items-center gap-1">
+                        <ShieldAlert className="w-3.5 h-3.5" />
+                        Conflicting / Unreconciled Items
+                      </div>
+                      <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
+                        {briefResponse.data.conflictingInformation.map((c, i) => (
+                          <li key={i}>{c}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {briefResponse.data.uncertaintyIndicators.length > 0 && (
+                    <div className="p-3 rounded-xl bg-[#F8F8F5] border border-[#042C53]/12 text-[#042C53] space-y-1">
+                      <div className="font-semibold text-[11px]">Uncertainty &amp; Verification Notes</div>
+                      <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-[#5F5D56]">
+                        {briefResponse.data.uncertaintyIndicators.map((u, i) => (
+                          <li key={i}>{u}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {briefDecision === 'Rejected' && (
+            <div className="p-3 rounded-xl bg-[#FAF9F6] border border-[#042C53]/10 text-[#5F5D56]">
+              AI-prepared brief rejected by clinician and logged in audit history. Deterministic What Matters Today and Safety Radar remain active below.
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Clinical Safety Radar */}
       <section
         data-demo-target="clinical-safety-radar-panel"
         aria-label="Clinical Safety Radar"
-        className={`rounded-lg border p-4 space-y-2.5 ${
+        className={`rounded-2xl border p-5 space-y-3 shadow-[0_1px_2px_rgba(4,44,83,0.03)] ${
           safetyRadar.some((a) => a.severity === 'Critical')
-            ? 'bg-red-50/70 border-red-200'
+            ? 'bg-[#FDF0EE]/70 border-[#B4321F]/25'
             : safetyRadar.length > 0
-            ? 'bg-amber-50/50 border-amber-200'
-            : 'bg-emerald-50/40 border-emerald-200'
+            ? 'bg-[#FEF5E7]/65 border-[#C97A1B]/25'
+            : 'bg-[#E9F7F1]/55 border-[#1D9E75]/25'
         }`}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 font-semibold text-[#042C53]">
+          <div className="flex items-center gap-2 font-display font-semibold text-sm text-[#042C53]">
             <ShieldAlert
               className={`w-4 h-4 ${
                 safetyRadar.some((a) => a.severity === 'Critical')
@@ -143,7 +509,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
               }`}
             />
             <span>Clinical Safety Radar</span>
-            <span className="font-mono tabular-nums text-[11px] text-[#5F5D56]">
+            <span className="font-mono tabular-nums text-[11px] font-medium text-[#5F5D56]">
               · {safetyRadar.length} active signal{safetyRadar.length === 1 ? '' : 's'}
             </span>
           </div>
@@ -153,16 +519,16 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
         </div>
 
         {safetyRadar.length === 0 ? (
-          <div className="text-xs text-[#0F6E50] flex items-center gap-1.5">
+          <div className="text-xs text-[#0F6E50] font-medium flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4" />
             No active safety conflicts, unreviewed critical results, or pending reconciliation alerts.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {safetyRadar.map((alert) => (
               <div
                 key={alert.id}
-                className="bg-white border border-slate-200 rounded-md p-3 flex items-start justify-between gap-3"
+                className="bg-white border border-[#042C53]/10 rounded-xl p-3.5 flex items-start justify-between gap-3 shadow-2xs"
               >
                 <div className="space-y-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -179,13 +545,13 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
                     <span className="text-[11px] font-medium text-[#5F5D56]">{alert.category}</span>
                   </div>
                   <div className="font-semibold text-[#042C53]">{alert.title}</div>
-                  <div className="text-[11px] text-[#5F5D56]">{alert.detail}</div>
+                  <div className="text-[11px] text-[#444441] leading-snug">{alert.detail}</div>
                   <div className="text-[10px] font-mono text-[#5F5D56]">Source: {alert.supportingRecord}</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setPatientTab(alert.targetTab)}
-                  className="text-[11px] font-medium text-[#185FA5] hover:underline shrink-0"
+                  className="px-2.5 py-1 text-[11px] font-medium text-[#185FA5] hover:bg-[#E6F1FB] rounded-lg transition-colors shrink-0"
                 >
                   Inspect
                 </button>
@@ -195,28 +561,28 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
         )}
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left 2 Columns: What Matters Today + Intelligent Document-to-Chart */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-5">
           <section
             data-demo-target="what-matters-today-panel"
-            className="bg-white border border-slate-200 rounded-lg p-4 space-y-3"
+            className="eigen-card p-5 space-y-4"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-sm font-semibold text-[#042C53]">What Matters Today</h3>
+            <div className="flex items-center justify-between border-b border-[#042C53]/[0.07] pb-3">
+              <h3 className="font-display text-sm font-semibold text-[#042C53]">What Matters Today</h3>
               <span className="text-[11px] text-[#5F5D56]">Click any source link to drill into full chart</span>
             </div>
 
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-[#042C53]/[0.06]">
               {groupedSections.map((group) => (
-                <div key={group.section} className="py-2.5 first:pt-0 last:pb-0 space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[#5F5D56]">
+                <div key={group.section} className="py-3 first:pt-0 last:pb-0 space-y-2.5">
+                  <div className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-[#5F5D56]">
                     {group.section}
                   </div>
                   {group.items.map((item) => (
                     <div
                       key={item.id}
-                      className="flex flex-wrap items-start justify-between gap-2 bg-[#F7F7F5] rounded-md px-3 py-2"
+                      className="flex flex-wrap items-start justify-between gap-2.5 eigen-card-subtle px-3.5 py-2.5"
                     >
                       <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -228,7 +594,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
                       <button
                         type="button"
                         onClick={() => setPatientTab(item.targetTab)}
-                        className="text-[11px] font-medium text-[#185FA5] hover:underline shrink-0"
+                        className="text-[11px] font-medium text-[#185FA5] hover:text-[#042C53] hover:underline shrink-0"
                       >
                         {item.sourceLabel} →
                       </button>
@@ -242,14 +608,14 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
           {/* Intelligent Document-to-Chart (AI Intake Intelligence) */}
           <section
             data-demo-target="ai-doc-to-chart-panel"
-            className="bg-white border border-slate-200 rounded-lg p-4 space-y-3"
+            className="eigen-card p-5 space-y-3.5"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#042C53]/[0.07] pb-3">
               <div>
-                <h3 className="text-sm font-semibold text-[#042C53]">
+                <h3 className="font-display text-sm font-semibold text-[#042C53]">
                   Intelligent Document-to-Chart (AI Intake Intelligence)
                 </h3>
-                <p className="text-[11px] text-[#5F5D56]">
+                <p className="text-[11px] text-[#5F5D56] mt-0.5">
                   Extracted items remain Draft / Unverified until explicitly verified by staff against source snippets.
                 </p>
               </div>
@@ -258,7 +624,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
                   type="button"
                   data-demo-target="extract-intake-btn"
                   onClick={() => runAiIntakeExtraction(latestIntake.id)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#185FA5] text-white font-medium rounded-md"
+                  className="eigen-btn-primary px-3.5 py-2 text-xs"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   Extract Structured Fields (Sim AI)
@@ -267,7 +633,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
             </div>
 
             {!latestIntake ? (
-              <div className="p-3 bg-[#F7F7F5] rounded-md flex flex-wrap items-center justify-between gap-2">
+              <div className="p-3.5 eigen-card-subtle flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[#5F5D56]">
                   No pre-visit intake submission recorded for {patient.fullName} yet.
                 </span>
@@ -281,7 +647,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-[#F7F7F5] px-3 py-2 rounded">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] eigen-card-subtle px-3.5 py-2.5">
                   <span>
                     <strong className="text-[#042C53]">Submitted:</strong>{' '}
                     <span className="font-mono">{latestIntake.submittedAt}</span> ·{' '}
@@ -295,15 +661,15 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
                 </div>
 
                 {latestIntake.extractedItems.length > 0 && (
-                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-md">
+                  <div className="divide-y divide-[#042C53]/[0.06] border border-[#042C53]/10 rounded-xl overflow-hidden">
                     {latestIntake.extractedItems.map((item, idx) => (
-                      <div key={item.id} className="p-3 flex flex-wrap items-start justify-between gap-3">
+                      <div key={item.id} className="p-3.5 bg-white flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-1 flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-[#042C53]">{item.field}</span>
                             <ProvenanceTag kind={item.verified ? 'Recorded Fact' : 'Simulated AI Suggestion'} />
                             {!item.verified && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-300 bg-amber-50 text-[#9A5B10]">
+                              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full border border-[#C97A1B]/30 bg-[#FEF5E7] text-[#9A5B10]">
                                 AI-prepared — review required
                               </span>
                             )}
@@ -311,7 +677,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
                               Confidence: {item.confidence}
                             </span>
                           </div>
-                          <div className="text-slate-800 font-medium">{item.value}</div>
+                          <div className="text-[#042C53] font-medium">{item.value}</div>
                           <div className="text-[11px] text-[#5F5D56]">
                             <span className="font-medium text-[#042C53]">Source:</span> {item.sourceDocument} — &ldquo;{item.sourceSnippet}&rdquo;
                           </div>
@@ -321,7 +687,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
                             </div>
                           )}
                           {item.verified && item.verifiedBy && (
-                            <div className="text-[11px] text-[#0F6E50]">
+                            <div className="text-[11px] text-[#0F6E50] font-medium">
                               Verified by {item.verifiedBy} · {item.verifiedAt}
                             </div>
                           )}
@@ -334,7 +700,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
                               type="button"
                               data-demo-target={`verify-intake-btn-${idx}`}
                               onClick={() => verifyIntakeExtractedItem(latestIntake.id, item.id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#185FA5] hover:bg-[#042C53] text-white text-[11px] font-medium rounded"
+                              className="eigen-btn-primary px-3 py-1.5 text-[11px]"
                             >
                               <Check className="w-3 h-3" />
                               Verify into Chart
@@ -350,7 +716,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
 
             {/* Unverified External Conditions Quick Review */}
             {patient.conditions.some((c) => !c.verified) && (
-              <div className="pt-2 border-t border-slate-100 space-y-2">
+              <div className="pt-3 border-t border-[#042C53]/[0.07] space-y-2">
                 <div className="text-[11px] font-semibold text-[#042C53]">
                   External HIE Conditions Pending Verification
                 </div>
@@ -359,16 +725,16 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
                   .map((c) => (
                     <div
                       key={c.id}
-                      className="flex items-center justify-between gap-2 p-2 bg-amber-50/60 border border-amber-200 rounded"
+                      className="flex items-center justify-between gap-2 p-2.5 bg-[#FEF5E7]/70 border border-[#C97A1B]/25 rounded-xl"
                     >
                       <div>
-                        <span className="font-medium text-[#042C53]">{c.name}</span>{' '}
+                        <span className="font-semibold text-[#042C53]">{c.name}</span>{' '}
                         <span className="font-mono text-[11px] text-[#5F5D56]">({c.icd10} · {c.source})</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => verifyExternalCondition(patient.id, c.id)}
-                        className="px-2.5 py-1 bg-white border border-amber-300 text-[#042C53] font-medium rounded hover:bg-amber-100"
+                        className="eigen-btn-secondary px-2.5 py-1 text-[11px]"
                       >
                         Verify
                       </button>
@@ -380,29 +746,29 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
         </div>
 
         {/* Right Column: Explicit Pre-Visit Readiness + Latest Vitals + Smart Handoffs */}
-        <div className="space-y-4">
+        <div className="space-y-5">
           <section
             data-demo-target="pre-visit-readiness-panel"
-            className="bg-white border border-slate-200 rounded-lg p-4 space-y-3"
+            className="eigen-card p-5 space-y-3"
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 font-semibold text-[#042C53]">
+              <div className="flex items-center gap-2 font-display font-semibold text-sm text-[#042C53]">
                 <ClipboardCheck className="w-4 h-4 text-[#185FA5]" />
                 <span>Pre-Visit Readiness</span>
               </div>
-              <span className="font-mono tabular-nums text-xs font-semibold text-[#042C53]">
-                {readiness.completedCount}/{readiness.totalCount} criteria
+              <span className="font-mono tabular-nums text-xs font-semibold text-[#042C53] bg-[#E6F1FB] px-2.5 py-0.5 rounded-full">
+                {readiness.completedCount}/{readiness.totalCount}
               </span>
             </div>
             <p className="text-[11px] text-[#5F5D56]">
               Explicit documented criteria status (no unverified composite scores).
             </p>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-[#042C53]/[0.06]">
               {readiness.criteria.map((c) => (
-                <div key={c.id} className="py-2 flex items-start justify-between gap-2">
+                <div key={c.id} className="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="font-medium text-[#042C53]">{c.label}</div>
-                    <div className="text-[11px] text-[#5F5D56]">{c.detail}</div>
+                    <div className="font-semibold text-[#042C53]">{c.label}</div>
+                    <div className="text-[11px] text-[#5F5D56] mt-0.5">{c.detail}</div>
                   </div>
                   <button
                     type="button"
@@ -419,13 +785,13 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
             </div>
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2.5">
+          <section className="eigen-card p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-[#042C53]">Vitals Comparison</h3>
+              <h3 className="font-display text-sm font-semibold text-[#042C53]">Vitals Comparison</h3>
               <button
                 type="button"
                 onClick={() => setPatientTab('encounters')}
-                className="text-[11px] text-[#185FA5] hover:underline"
+                className="text-[11px] font-medium text-[#185FA5] hover:underline"
               >
                 Record / Edit
               </button>
@@ -433,38 +799,38 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
             {vitals.length === 0 ? (
               <p className="text-[#5F5D56]">No vitals recorded yet.</p>
             ) : (
-              <div className="grid grid-cols-2 gap-2 bg-[#F7F7F5] p-3 rounded font-mono tabular-nums">
-                <div>
-                  <div className="text-[10px] font-sans text-[#5F5D56]">BP (mmHg)</div>
-                  <div className="font-semibold text-[#042C53]">
+              <div className="grid grid-cols-2 gap-2.5 font-mono tabular-nums">
+                <div className="p-3 eigen-card-subtle">
+                  <div className="text-[10px] font-sans font-medium text-[#5F5D56]">BP (mmHg)</div>
+                  <div className="text-sm font-semibold text-[#042C53] mt-0.5">
                     {vitals[0].bpSystolic}/{vitals[0].bpDiastolic}
                   </div>
                   {vitals[1] && (
-                    <div className="text-[10px] text-[#5F5D56]">
+                    <div className="text-[10px] text-[#5F5D56] mt-0.5">
                       Prior: {vitals[1].bpSystolic}/{vitals[1].bpDiastolic}
                     </div>
                   )}
                 </div>
-                <div>
-                  <div className="text-[10px] font-sans text-[#5F5D56]">Heart Rate</div>
-                  <div className="font-semibold text-[#042C53]">{vitals[0].heartRate} bpm</div>
-                  <div className="text-[10px] text-[#5F5D56]">SpO2 {vitals[0].spo2}%</div>
+                <div className="p-3 eigen-card-subtle">
+                  <div className="text-[10px] font-sans font-medium text-[#5F5D56]">Heart Rate</div>
+                  <div className="text-sm font-semibold text-[#042C53] mt-0.5">{vitals[0].heartRate} bpm</div>
+                  <div className="text-[10px] text-[#5F5D56] mt-0.5">SpO2 {vitals[0].spo2}%</div>
                 </div>
-                <div>
-                  <div className="text-[10px] font-sans text-[#5F5D56]">Weight</div>
-                  <div className="font-semibold text-[#042C53]">{vitals[0].weightKg} kg</div>
+                <div className="p-3 eigen-card-subtle">
+                  <div className="text-[10px] font-sans font-medium text-[#5F5D56]">Weight</div>
+                  <div className="text-sm font-semibold text-[#042C53] mt-0.5">{vitals[0].weightKg} kg</div>
                 </div>
-                <div>
-                  <div className="text-[10px] font-sans text-[#5F5D56]">Recorded By</div>
-                  <div className="font-sans text-[11px] text-[#042C53] truncate">{vitals[0].recordedBy}</div>
+                <div className="p-3 eigen-card-subtle">
+                  <div className="text-[10px] font-sans font-medium text-[#5F5D56]">Recorded By</div>
+                  <div className="font-sans text-[11px] font-medium text-[#042C53] truncate mt-1">{vitals[0].recordedBy}</div>
                 </div>
               </div>
             )}
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-lg p-4 space-y-2.5">
+          <section className="eigen-card p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-[#042C53]">Smart Role Handoffs ({patientHandoffs.length})</h3>
+              <h3 className="font-display text-sm font-semibold text-[#042C53]">Smart Role Handoffs ({patientHandoffs.length})</h3>
               <button
                 type="button"
                 data-demo-target="log-handoff-btn"
@@ -489,11 +855,11 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
             {patientHandoffs.length === 0 ? (
               <p className="text-[11px] text-[#5F5D56]">No structured role handoffs recorded yet.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {patientHandoffs.slice(0, 4).map((h) => (
-                  <div key={h.id} className="p-2.5 bg-[#F7F7F5] rounded space-y-1">
+                  <div key={h.id} className="p-3 eigen-card-subtle space-y-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-[#042C53]">
+                      <span className="font-semibold text-[#042C53]">
                         {h.fromRole} → {h.toRole}
                       </span>
                       <StatusBadge
@@ -501,7 +867,7 @@ export const PreConsultationTab: React.FC<{ patient: Patient }> = ({ patient }) 
                         tone={h.status === 'Completed' ? 'success' : h.status === 'Accepted' ? 'blue' : 'warning'}
                       />
                     </div>
-                    <div className="text-[11px] text-[#5F5D56]">{h.reason}</div>
+                    <div className="text-[11px] text-[#444441]">{h.reason}</div>
                     <div className="text-[10px] font-mono text-[#5F5D56]">
                       Owner: {h.toOwnerName} · {h.timestamp}
                     </div>
@@ -528,8 +894,12 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
     saveEncounterDraft,
     signEncounter,
     runSimulatedAmbientScribe,
+    stageAiComposerProposals,
+    updateComposerProposal,
     decideComposerAction,
+    notify,
   } = useAppState();
+  const { flags, updateFlags, serverStatus } = useClinicalAiFlags();
 
   const patientEncounters = state.encounters.filter((e) => e.patientId === patient.id);
   const activeEncounter = patientEncounters[0];
@@ -538,73 +908,199 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
   );
 
   const [simRecording, setSimRecording] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState('ckd-htn');
   const [transcript, setTranscript] = useState(
     scribeSession?.transcript || activeEncounter?.scribeTranscript || DEMO_AMBIENT_TRANSCRIPT
   );
   const [whyOpenId, setWhyOpenId] = useState<string | null>(null);
+  const [scribeDraftVersion, setScribeDraftVersion] = useState(0);
+  const [scribeAiLoading, setScribeAiLoading] = useState(false);
+  const [scribeAiResponse, setScribeAiResponse] = useState<ClinicalAIResponse<AmbientScribeV2Output> | null>(null);
+  const [composerAiLoading, setComposerAiLoading] = useState(false);
+  const [composerAiResponse, setComposerAiResponse] = useState<ClinicalAIResponse<ActionComposerOutput> | null>(null);
+  const [editingActionId, setEditingActionId] = useState<string | null>(null);
+  const [editActionTitle, setEditActionTitle] = useState('');
+  const [editActionSummary, setEditActionSummary] = useState('');
 
   const timeMachine = useMemo(() => buildJourneyTimeMachine(state, patient.id), [state, patient.id]);
   const canSign = canSignClinicalNote(state.currentRole);
   const canApproveActions = canOrderOrPrescribe(state.currentRole);
 
+  const ensureEncounter = () => {
+    if (activeEncounter) return activeEncounter;
+    return createEncounter({
+      patientId: patient.id,
+      providerId: state.currentUserId,
+      facilityId: patient.facilityId,
+      date: TODAY_DATE,
+      type: 'Outpatient Consultation',
+      chiefComplaint: patient.chiefConcern || 'Follow-up consultation',
+      soap: {
+        subjective: '',
+        objective: '',
+        assessment: '',
+        plan: '',
+      },
+      diagnoses: patient.conditions.slice(0, 2).map((c) => `${c.name} (${c.icd10})`),
+      noteStatus: 'Draft',
+      amendments: [],
+      comments: [],
+      avsReleased: false,
+    });
+  };
+
   const handleStartScribe = () => {
-    if (!activeEncounter) {
-      createEncounter({
-        patientId: patient.id,
-        providerId: state.currentUserId,
-        facilityId: patient.facilityId,
-        date: TODAY_DATE,
-        type: 'Outpatient Consultation',
-        chiefComplaint: patient.chiefConcern || 'Follow-up consultation',
-        soap: {
-          subjective: '',
-          objective: '',
-          assessment: '',
-          plan: '',
-        },
-        diagnoses: patient.conditions.slice(0, 2).map((c) => `${c.name} (${c.icd10})`),
-        noteStatus: 'Draft',
-        amendments: [],
-        comments: [],
-        avsReleased: false,
-      });
-    }
+    ensureEncounter();
     setSimRecording(true);
   };
 
   const handleStopAndDraft = () => {
     setSimRecording(false);
-    const enc = activeEncounter || state.encounters.find((e) => e.patientId === patient.id);
-    if (!enc) return;
+    const enc = ensureEncounter();
     runSimulatedAmbientScribe(patient.id, enc.id, transcript);
   };
 
+  const handleGenerateAiSoapV2 = async (modeOverride?: ClinicalAIExecutionMode) => {
+    setSimRecording(false);
+    const enc = ensureEncounter();
+    const nextVersion = scribeDraftVersion + 1;
+    setScribeAiLoading(true);
+    const resp = await generateAmbientScribeV2WithClinicalAi(
+      state,
+      {
+        patientId: patient.id,
+        encounterId: enc.id,
+        transcript,
+        draftVersion: nextVersion,
+      },
+      { modeOverride, flags }
+    );
+    setScribeAiResponse(resp);
+    setScribeAiLoading(false);
+    if (resp.ok && resp.data) {
+      setScribeDraftVersion(resp.data.draftVersion);
+      stageAiComposerProposals({
+        patientId: patient.id,
+        encounterId: enc.id,
+        transcript,
+        soap: resp.data.soap,
+        executionMode: resp.executionMode,
+        modelId: resp.modelId,
+        requestId: resp.requestId,
+      });
+      notify(
+        'info',
+        `SOAP Draft v${resp.data.draftVersion} generated (${resp.executionMode === 'live-ai' ? 'Live AI' : 'Deterministic Demo'}) — review & sign manually`
+      );
+    } else if (resp.error) {
+      notify('error', resp.error.message);
+    }
+  };
+
+  const handlePrepareActionsFromSoap = async (modeOverride?: ClinicalAIExecutionMode) => {
+    const enc = activeEncounter;
+    if (!enc) {
+      notify('warning', 'Generate or enter a SOAP note draft before preparing clinical actions.');
+      return;
+    }
+    setComposerAiLoading(true);
+    const resp = await prepareClinicalActionsWithClinicalAi(
+      state,
+      {
+        patientId: patient.id,
+        encounterId: enc.id,
+        soap: enc.soap,
+        transcript,
+      },
+      { modeOverride, flags }
+    );
+    setComposerAiResponse(resp);
+    setComposerAiLoading(false);
+    if (resp.ok && resp.data) {
+      const staged = resp.data.proposals.map((p) => ({
+        id: p.id,
+        kind: p.kind,
+        title: p.title,
+        summary: p.summary,
+        status: 'Awaiting Approval' as const,
+        payload: p.payload,
+        whyExplanation: p.rationale,
+        supportingRecord: p.supportingSourceText,
+        source: `${resp.executionMode === 'live-ai' ? 'Live AI Action Composer' : 'Deterministic Action Composer'} (${resp.modelId})`,
+        sourceVerified: p.sourceIds.length > 0,
+        confidence: p.confidence,
+        uncertaintyNote: p.uncertaintyNote,
+        humanDecisionRequired: 'Authorized Clinician must approve individually before chart write.',
+        idempotencyKey: p.idempotencyKey,
+        executionMode: resp.executionMode,
+        modelId: resp.modelId,
+      }));
+      stageAiComposerProposals({
+        patientId: patient.id,
+        encounterId: enc.id,
+        proposals: staged,
+        executionMode: resp.executionMode,
+        modelId: resp.modelId,
+        requestId: resp.requestId,
+      });
+      notify('info', `Staged ${staged.length} reviewable action proposal(s) from reviewed SOAP note`);
+    } else if (resp.error) {
+      notify('error', resp.error.message);
+    }
+  };
+
   return (
-    <div className="space-y-4 text-xs">
+    <div className="space-y-5 text-xs">
       {/* Top Disclosure & Scribe Controls */}
       <section
         data-demo-target="ambient-scribe-panel"
-        className="bg-white border border-slate-200 rounded-lg p-4 space-y-3"
+        className="eigen-card p-5 space-y-4"
       >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Mic className="w-4 h-4 text-[#185FA5]" />
-              <h2 className="text-sm font-semibold text-[#042C53]">
-                Post-Consultation Summary & Simulated Ambient AI Scribe
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="w-9 h-9 rounded-xl bg-[#E6F1FB] text-[#185FA5] flex items-center justify-center shrink-0">
+              <Mic className="w-4 h-4" />
+            </span>
+            <div>
+              <h2 className="font-display text-base font-semibold text-[#042C53]">
+                Post-Consultation Summary &amp; Ambient Clinical Scribe V2
               </h2>
+              <p className="text-xs text-[#5F5D56] mt-0.5 leading-relaxed">
+                Processes synthetic consultation transcripts only — <strong>no live microphone audio is captured or transmitted</strong>. Drafts are never auto-signed.
+              </p>
             </div>
-            <p className="text-[11px] text-[#5F5D56] mt-0.5">
-              Uses synthetic consultation transcripts — <strong>no live microphone audio is captured or transmitted</strong>. All drafts require individual clinician review and sign-off.
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <ClinicalAiModeToggle
+              mode={flags.executionMode}
+              onChangeMode={(m) => updateFlags({ executionMode: m })}
+              serverConfigured={serverStatus?.configured}
+              compact
+            />
+            <button
+              type="button"
+              data-demo-target="generate-ai-soap-v2-btn"
+              disabled={scribeAiLoading || !flags.ambientScribeV2 || !transcript.trim()}
+              onClick={() => void handleGenerateAiSoapV2()}
+              className="eigen-btn-navy px-4 py-2 text-xs disabled:opacity-50"
+            >
+              {scribeAiLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5" />
+              )}
+              {scribeAiLoading
+                ? 'Drafting SOAP...'
+                : flags.executionMode === 'live-ai'
+                ? 'Generate AI SOAP Draft (Live)'
+                : 'Generate AI SOAP Draft'}
+            </button>
             {!simRecording ? (
               <button
                 type="button"
                 data-demo-target="start-sim-scribe-btn"
                 onClick={handleStartScribe}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#185FA5] hover:bg-[#042C53] text-white font-medium rounded-md"
+                className="eigen-btn-primary px-3.5 py-2 text-xs"
               >
                 <Mic className="w-3.5 h-3.5" />
                 Start Simulated Scribe
@@ -614,56 +1110,138 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
                 type="button"
                 data-demo-target="stop-gen-soap-btn"
                 onClick={handleStopAndDraft}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#B4321F] hover:bg-red-800 text-white font-medium rounded-md"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#B4321F] hover:bg-[#8E2517] text-white font-medium rounded-xl shadow-xs transition-colors"
               >
                 <Square className="w-3.5 h-3.5" />
-                Stop & Generate Draft SOAP
+                Stop &amp; Generate Draft SOAP
               </button>
             )}
             <button
               type="button"
               data-demo-target="gen-draft-transcript-btn"
               onClick={handleStopAndDraft}
-              className="px-3 py-1.5 border border-slate-300 text-[#042C53] font-medium rounded-md hover:bg-slate-50"
+              className="eigen-btn-secondary px-3 py-2 text-xs"
             >
-              Generate Draft from Transcript
+              Fixture Draft
             </button>
           </div>
         </div>
 
         {simRecording && (
-          <div className="p-2.5 bg-[#E6F1FB] border border-[#85B7EB] rounded text-[#042C53] flex items-center justify-between">
-            <span className="font-medium">
+          <div className="p-3 bg-[#E6F1FB] border border-[#85B7EB]/70 rounded-xl text-[#042C53] flex flex-wrap items-center justify-between gap-2">
+            <span className="font-semibold">
               Active Simulated Consultation Session (Synthetic Transcript Mode — No Audio Recorded)
             </span>
-            <span className="font-mono text-[11px]">Click &ldquo;Stop & Generate Draft SOAP&rdquo; when ready</span>
+            <span className="font-mono text-[11px] text-[#185FA5]">Click &ldquo;Generate AI SOAP Draft&rdquo; or &ldquo;Stop &amp; Generate Draft SOAP&rdquo; when ready</span>
           </div>
         )}
 
+        {/* Synthetic Transcript Preset Selector */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#5F5D56]">
+            Synthetic Transcript Presets:
+          </span>
+          {SYNTHETIC_TRANSCRIPT_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              data-demo-target={`transcript-preset-${preset.id}`}
+              onClick={() => {
+                setSelectedPresetId(preset.id);
+                setTranscript(preset.text);
+              }}
+              className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-colors ${
+                selectedPresetId === preset.id
+                  ? 'bg-[#042C53] text-white border-[#042C53]'
+                  : 'bg-[#FAF9F6] text-[#042C53] border-[#042C53]/12 hover:bg-[#E6F1FB]'
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
         <div>
-          <label htmlFor="ambient-transcript" className="block text-[11px] font-semibold text-[#042C53] mb-1">
-            Synthetic Consultation Transcript (Editable for Testing)
+          <label htmlFor="ambient-transcript" className="block text-[11px] font-semibold text-[#042C53] mb-1.5">
+            Synthetic Consultation Transcript (Kept Separate from Editable SOAP Draft)
           </label>
           <textarea
             id="ambient-transcript"
             rows={4}
             value={transcript}
             onChange={(e) => setTranscript(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-200 rounded-md bg-[#F7F7F5] focus:bg-white focus:border-[#185FA5] focus:outline-none text-xs leading-relaxed"
+            className="w-full px-3.5 py-2.5 eigen-input bg-[#F8F8F5] text-xs leading-relaxed"
           />
         </div>
+
+        {scribeAiResponse && scribeAiResponse.ok && (
+          <ClinicalAiProvenanceBar
+            response={scribeAiResponse}
+            reviewStatusOverride={
+              activeEncounter?.noteStatus === 'Signed'
+                ? 'Signed by Clinician'
+                : `Draft v${scribeDraftVersion} — Clinician Review & Signature Required`
+            }
+          />
+        )}
+
+        {scribeAiResponse && !scribeAiResponse.ok && (
+          <ClinicalAiErrorBanner
+            response={scribeAiResponse}
+            onRetry={() => void handleGenerateAiSoapV2('live-ai')}
+            onSwitchDeterministic={() => void handleGenerateAiSoapV2('deterministic-demo')}
+          />
+        )}
+
+        {scribeAiResponse?.ok && scribeAiResponse.data && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            {scribeAiResponse.data.unsupportedOrUncertainStatements.length > 0 && (
+              <div className="p-3 rounded-xl bg-[#FEF5E7] border border-[#C97A1B]/30 space-y-1.5">
+                <div className="text-[11px] font-semibold text-[#9A5B10] flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  Unsupported / Uncertain Statements Highlighted ({scribeAiResponse.data.unsupportedOrUncertainStatements.length})
+                </div>
+                <ul className="space-y-1 text-[11px] text-[#444441]">
+                  {scribeAiResponse.data.unsupportedOrUncertainStatements.map((item, idx) => (
+                    <li key={idx}>
+                      <span className="font-mono uppercase text-[10px] font-semibold text-[#9A5B10] mr-1">
+                        [{item.section}]
+                      </span>
+                      <strong className="text-[#042C53]">{item.statement}:</strong> {item.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {scribeAiResponse.data.supportingTranscriptQuotes.length > 0 && (
+              <div className="p-3 rounded-xl bg-[#FAF9F6] border border-[#042C53]/10 space-y-1.5">
+                <div className="text-[11px] font-semibold text-[#042C53]">
+                  Supporting Transcript Evidence Quotes ({scribeAiResponse.data.supportingTranscriptQuotes.length})
+                </div>
+                <ul className="space-y-1 text-[11px] text-[#5F5D56] font-mono">
+                  {scribeAiResponse.data.supportingTranscriptQuotes.slice(0, 4).map((q, idx) => (
+                    <li key={idx}>
+                      <span className="uppercase text-[10px] text-[#185FA5] font-semibold mr-1">[{q.section}]</span>
+                      &ldquo;{q.quote}&rdquo;
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Left: SOAP Note Draft & Sign-Off */}
         <section
           data-demo-target="post-consult-approval-bar"
-          className="bg-white border border-slate-200 rounded-lg p-4 space-y-3"
+          className="eigen-card p-5 space-y-4"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#042C53]/[0.07] pb-3">
             <div>
-              <h3 className="text-sm font-semibold text-[#042C53]">Consultation SOAP Review</h3>
-              <p className="text-[11px] text-[#5F5D56]">
+              <h3 className="font-display text-sm font-semibold text-[#042C53]">Consultation SOAP Review</h3>
+              <p className="text-[11px] text-[#5F5D56] mt-0.5">
                 {activeEncounter
                   ? `${activeEncounter.type} · ${activeEncounter.date}`
                   : 'No encounter created yet — start simulated scribe above.'}
@@ -673,12 +1251,12 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
           </div>
 
           {activeEncounter ? (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {(['subjective', 'objective', 'assessment', 'plan'] as const).map((sec) => (
                 <div key={sec}>
                   <label
                     htmlFor={`post-soap-${sec}`}
-                    className="block text-[11px] font-semibold uppercase tracking-wide text-[#5F5D56] mb-1"
+                    className="block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-[#5F5D56] mb-1.5"
                   >
                     {sec}
                   </label>
@@ -692,14 +1270,14 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
                         soap: { ...activeEncounter.soap, [sec]: e.target.value },
                       })
                     }
-                    className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs disabled:bg-slate-50"
+                    className="w-full px-3 py-2 eigen-input text-xs leading-relaxed disabled:bg-[#F8F8F5] disabled:text-[#444441]"
                   />
                 </div>
               ))}
 
-              <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="pt-3 border-t border-[#042C53]/[0.08] flex flex-wrap items-center justify-between gap-2">
                 {activeEncounter.noteStatus === 'Signed' ? (
-                  <div className="inline-flex items-center gap-1.5 text-[#0F6E50] font-medium">
+                  <div className="inline-flex items-center gap-1.5 text-[#0F6E50] font-semibold bg-[#E9F7F1] px-3 py-1.5 rounded-xl">
                     <Lock className="w-3.5 h-3.5" />
                     Signed by {activeEncounter.signedBy} · {activeEncounter.signedAt}
                   </div>
@@ -715,7 +1293,7 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
                       data-demo-target="sign-lock-note-btn"
                       disabled={!canSign}
                       onClick={() => signEncounter(activeEncounter.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#042C53] hover:bg-[#185FA5] disabled:bg-slate-300 text-white font-medium rounded-md"
+                      className="eigen-btn-navy px-4 py-2 text-xs disabled:opacity-45"
                     >
                       <UserCheck className="w-3.5 h-3.5" />
                       Sign & Lock Clinical Note
@@ -725,49 +1303,81 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
               </div>
             </div>
           ) : (
-            <div className="p-4 bg-[#F7F7F5] rounded text-[#5F5D56]">
+            <div className="p-4 eigen-card-subtle text-[#5F5D56]">
               Generate a simulated SOAP draft or open the Encounters tab to begin documentation.
             </div>
           )}
         </section>
 
-        {/* Right: AI Clinical Action Composer with "Why?" Explainability */}
+        {/* Right: AI Clinical Action Composer with "Why?" Explainability & Individual Approval */}
         <section
           data-demo-target="ai-action-composer-panel"
-          className="bg-white border border-slate-200 rounded-lg p-4 space-y-3"
+          className="eigen-card p-5 space-y-4"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#042C53]/[0.07] pb-3">
             <div>
-              <h3 className="text-sm font-semibold text-[#042C53]">
+              <h3 className="font-display text-sm font-semibold text-[#042C53]">
                 AI Clinical Action Composer
               </h3>
-              <p className="text-[11px] text-[#5F5D56]">
-                Every proposed order, medication draft, follow-up, and handoff requires individual human approval.
+              <p className="text-[11px] text-[#5F5D56] mt-0.5">
+                Propose lab orders, medication drafts, follow-up tasks, referrals, and patient instructions from the reviewed SOAP note. Every action requires individual approval.
               </p>
             </div>
-            <ProvenanceTag kind="Simulated AI Suggestion" />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-demo-target="prepare-ai-actions-btn"
+                disabled={composerAiLoading || !flags.actionComposer || !activeEncounter}
+                onClick={() => void handlePrepareActionsFromSoap()}
+                className="eigen-btn-navy px-3 py-1.5 text-[11px] disabled:opacity-50"
+              >
+                {composerAiLoading ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3 h-3" />
+                )}
+                {composerAiLoading ? 'Preparing...' : 'Prepare Actions from SOAP'}
+              </button>
+              <ProvenanceTag kind="Simulated AI Suggestion" />
+            </div>
           </div>
 
+          {composerAiResponse && composerAiResponse.ok && (
+            <ClinicalAiProvenanceBar response={composerAiResponse} />
+          )}
+          {composerAiResponse && !composerAiResponse.ok && (
+            <ClinicalAiErrorBanner
+              response={composerAiResponse}
+              onRetry={() => void handlePrepareActionsFromSoap('live-ai')}
+              onSwitchDeterministic={() => void handlePrepareActionsFromSoap('deterministic-demo')}
+            />
+          )}
+
           {!scribeSession || scribeSession.proposedActions.length === 0 ? (
-            <div className="p-4 bg-[#F7F7F5] rounded text-[#5F5D56]">
-              No clinical actions staged yet. Run Simulated Ambient Scribe to extract reviewable proposals.
+            <div className="p-4 eigen-card-subtle text-[#5F5D56]">
+              No clinical actions staged yet. Generate or review a SOAP draft, then click &ldquo;Prepare Actions from SOAP&rdquo;.
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {scribeSession.proposedActions.map((act, idx) => {
                 const isWhyOpen = whyOpenId === act.id;
+                const isEditing = editingActionId === act.id;
                 const pending = act.status === 'Awaiting Approval' || act.status === 'Draft';
                 return (
                   <div
                     key={act.id}
-                    className="border border-slate-200 rounded-md p-3 space-y-2 bg-[#F7F7F5]/60"
+                    className={`rounded-xl border p-3.5 space-y-2.5 transition-colors ${
+                      act.status === 'Completed'
+                        ? 'bg-[#E9F7F1]/45 border-[#1D9E75]/25'
+                        : 'bg-[#FAF9F7] border-[#042C53]/10'
+                    }`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="space-y-0.5 min-w-0 flex-1">
+                      <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-[11px] font-semibold text-[#185FA5]">{act.kind}</span>
                           {pending && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-[#9A5B10] rounded">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-[#FEF5E7] border border-[#C97A1B]/30 text-[#9A5B10] rounded-full">
                               AI-prepared — review required
                             </span>
                           )}
@@ -777,14 +1387,59 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
                             </span>
                           )}
                         </div>
-                        <div className="font-semibold text-[#042C53]">{act.title}</div>
-                        <p className="text-[11px] text-[#5F5D56]">{act.summary}</p>
+                        {isEditing ? (
+                          <div className="space-y-2 pt-1">
+                            <input
+                              type="text"
+                              aria-label="Edit proposal title"
+                              value={editActionTitle}
+                              onChange={(e) => setEditActionTitle(e.target.value)}
+                              className="eigen-input w-full"
+                            />
+                            <textarea
+                              rows={2}
+                              aria-label="Edit proposal summary"
+                              value={editActionSummary}
+                              onChange={(e) => setEditActionSummary(e.target.value)}
+                              className="eigen-input w-full"
+                            />
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateComposerProposal(scribeSession.id, act.id, {
+                                    title: editActionTitle.trim() || act.title,
+                                    summary: editActionSummary.trim() || act.summary,
+                                  });
+                                  setEditingActionId(null);
+                                }}
+                                className="eigen-btn-primary px-2.5 py-1 text-[11px]"
+                              >
+                                Save Draft Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingActionId(null)}
+                                className="eigen-btn-secondary px-2.5 py-1 text-[11px]"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="font-semibold text-[#042C53]">{act.title}</div>
+                            <p className="text-[11px] text-[#444441] leading-snug">{act.summary}</p>
+                          </>
+                        )}
                       </div>
                       <StatusBadge label={act.status} />
                     </div>
 
                     {act.resultRef && (
-                      <div className="text-[11px] font-mono text-[#0F6E50]">Result: {act.resultRef}</div>
+                      <div className="text-[11px] font-mono text-[#0F6E50] bg-[#E9F7F1] px-2.5 py-1 rounded-lg">
+                        Result: {act.resultRef}
+                      </div>
                     )}
 
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
@@ -798,14 +1453,26 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
                         {isWhyOpen ? 'Hide Why?' : 'Why? (Evidence & Provenance)'}
                       </button>
 
-                      {pending && (
+                      {pending && !isEditing && (
                         <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingActionId(act.id);
+                              setEditActionTitle(act.title);
+                              setEditActionSummary(act.summary);
+                            }}
+                            className="eigen-btn-secondary px-2.5 py-1.5 text-[11px]"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            Edit
+                          </button>
                           <button
                             type="button"
                             data-demo-target={`composer-approve-btn-${idx}`}
                             disabled={!canApproveActions}
                             onClick={() => decideComposerAction(scribeSession.id, act.id, 'approve')}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#185FA5] hover:bg-[#042C53] disabled:bg-slate-300 text-white text-[11px] font-medium rounded"
+                            className="eigen-btn-primary px-3 py-1.5 text-[11px] disabled:opacity-40"
                           >
                             <Check className="w-3 h-3" />
                             Approve
@@ -813,7 +1480,7 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
                           <button
                             type="button"
                             onClick={() => decideComposerAction(scribeSession.id, act.id, 'cancel')}
-                            className="inline-flex items-center gap-1 px-2 py-1 border border-red-200 text-[#B4321F] text-[11px] font-medium rounded hover:bg-red-50"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-[#B4321F]/25 text-[#B4321F] text-[11px] font-medium rounded-lg hover:bg-[#FDF0EE] transition-colors"
                           >
                             <X className="w-3 h-3" />
                             Cancel
@@ -823,7 +1490,7 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
                     </div>
 
                     {isWhyOpen && (
-                      <div className="mt-2 p-2.5 bg-white border border-slate-200 rounded text-[11px] space-y-1">
+                      <div className="mt-2 p-3 bg-white border border-[#042C53]/10 rounded-xl text-[11px] space-y-1.5">
                         <div>
                           <strong className="text-[#042C53]">Rationale:</strong> {act.whyExplanation || 'Derived from consultation draft.'}
                         </div>
@@ -855,24 +1522,26 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
       {/* Patient Journey Time Machine */}
       <section
         data-demo-target="journey-time-machine-panel"
-        className="bg-white border border-slate-200 rounded-lg p-4 space-y-3"
+        className="eigen-card p-5 space-y-3.5"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#042C53]/[0.07] pb-3">
           <div>
-            <h3 className="text-sm font-semibold text-[#042C53]">Patient Journey Time Machine</h3>
-            <p className="text-[11px] text-[#5F5D56]">
+            <h3 className="font-display text-sm font-semibold text-[#042C53]">Patient Journey Time Machine</h3>
+            <p className="text-[11px] text-[#5F5D56] mt-0.5">
               Chronological provenance across human actions, AI drafts, and clinical role handoffs for {patient.fullName}.
             </p>
           </div>
-          <span className="font-mono tabular-nums text-[11px] text-[#5F5D56]">{timeMachine.length} journey events</span>
+          <span className="font-mono tabular-nums text-[11px] text-[#5F5D56] bg-[#F1EFE8] px-2.5 py-0.5 rounded-full">
+            {timeMachine.length} journey events
+          </span>
         </div>
 
         {timeMachine.length === 0 ? (
           <p className="text-[#5F5D56]">No chronological journey events logged yet.</p>
         ) : (
-          <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto eigen-scroll">
+          <div className="divide-y divide-[#042C53]/[0.06] max-h-72 overflow-y-auto eigen-scroll">
             {timeMachine.map((entry) => (
-              <div key={entry.id} className="py-2.5 flex flex-wrap items-start justify-between gap-3">
+              <div key={entry.id} className="py-3 first:pt-0 last:pb-0 flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-0.5 min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[11px] text-[#5F5D56]">{entry.timestamp}</span>
@@ -888,7 +1557,7 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
                       }
                     />
                   </div>
-                  <div className="text-slate-700">{entry.whatChanged}</div>
+                  <div className="text-[#042C53]/90">{entry.whatChanged}</div>
                   <div className="text-[11px] text-[#5F5D56]">
                     Actor: {entry.actor} ({entry.role}) · {entry.whyAdvanced}
                     {entry.nextOwner ? ` · Next owner: ${entry.nextOwner}` : ''}
@@ -897,7 +1566,7 @@ export const PostConsultationTab: React.FC<{ patient: Patient }> = ({ patient })
                 <button
                   type="button"
                   onClick={() => setPatientTab(entry.targetTab)}
-                  className="text-[11px] font-medium text-[#185FA5] hover:underline shrink-0"
+                  className="px-2.5 py-1 text-[11px] font-medium text-[#185FA5] hover:bg-[#E6F1FB] rounded-lg transition-colors shrink-0"
                 >
                   Open Source
                 </button>

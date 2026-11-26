@@ -110,6 +110,24 @@ export interface PatientDataInboxItem {
   extractedFields: InboxExtractedField[];
   verifiedBy?: string;
   verifiedAt?: string;
+  aiExecutionMode?: 'live-ai' | 'deterministic-demo';
+  aiModelId?: string;
+  aiRequestId?: string;
+  aiSummary?: string;
+  aiLabMeasurements?: {
+    testName: string;
+    originalValue: string;
+    originalUnit: string;
+    referenceRange: string;
+    sampleOrResultDate?: string;
+    laboratoryIdentity?: string;
+    flag?: 'Normal' | 'Abnormal' | 'Critical' | 'Not Stated';
+    sourceSnippet: string;
+    uncertain: boolean;
+    uncertaintyReason?: string;
+  }[];
+  aiMissingFlags?: string[];
+  aiIdentitySafetyNote?: string;
 }
 
 export interface ClinicalRecommendationDecision {
@@ -754,6 +772,9 @@ export interface AiProposedAction {
   confidence?: 'High' | 'Medium' | 'Low';
   uncertaintyNote?: string;
   humanDecisionRequired?: string;
+  idempotencyKey?: string;
+  executionMode?: 'live-ai' | 'deterministic-demo';
+  modelId?: string;
 }
 
 export interface IntakeExtractedItem {

@@ -196,6 +196,39 @@ interface AppContextValue {
     status: ClinicalRecommendationDecision['status'],
     note?: string
   ) => void;
+  applyAiDocumentAnalysis: (
+    itemId: string,
+    analysis: {
+      documentType: PatientDataInboxItem['category'];
+      documentDate?: string;
+      laboratoryOrFacilityIdentity?: string;
+      extractedPatientIdentity: PatientDataInboxItem['extractedIdentity'];
+      summary: string;
+      labMeasurements: NonNullable<PatientDataInboxItem['aiLabMeasurements']>;
+      extractedFields: PatientDataInboxItem['extractedFields'];
+      missingOrAmbiguousFlags: string[];
+      identitySafetyNote?: string;
+      executionMode: 'live-ai' | 'deterministic-demo';
+      modelId: string;
+      requestId: string;
+    }
+  ) => void;
+  stageAiComposerProposals: (params: {
+    patientId: string;
+    encounterId: string;
+    transcript?: string;
+    soap?: Encounter['soap'];
+    proposals?: AiProposedAction[];
+    executionMode: 'live-ai' | 'deterministic-demo';
+    modelId: string;
+    requestId: string;
+  }) => void;
+  updateComposerProposal: (
+    scribeSessionId: string,
+    actionId: string,
+    patch: { title?: string; summary?: string; payload?: Record<string, string> }
+  ) => void;
+  recordClinicalAiAudit: (action: string, targetType: string, targetId: string, detail: string) => void;
   replaceEntireState: (nextState: AppState) => void;
 }
 
@@ -2455,6 +2488,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const action = session?.proposedActions.find((a) => a.id === actionId);
       if (!session || !action) return { ok: false, error: 'Proposed action not found.' };
 
+      // Idempotency guard: never execute duplicate chart writes when an already-completed action is retried
+      if (decision === 'approve' && action.status === 'Completed') {
+        notify('info', `Already approved (idempotent replay prevented duplicate write): ${action.title}`);
+        return { ok: true };
+      }
+
       if (decision === 'cancel') {
         setState((prev) => ({
           ...prev,
@@ -2475,95 +2514,139 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       setState((prev) => {
+        // Secondary state-level idempotency check in case of rapid double-clicks
+        const liveSession = (prev.scribeSessions || []).find((s) => s.id === scribeSessionId);
+        const liveAction = liveSession?.proposedActions.find((a) => a.id === actionId);
+        if (!liveSession || !liveAction || liveAction.status === 'Completed') {
+          return prev;
+        }
+
         const pat = prev.patients.find((p) => p.id === session.patientId);
         let nextOrders = prev.orders;
         let nextMeds = prev.medications;
         let nextPlans = prev.followUpPlans || [];
         let nextTasks = prev.tasks;
         let nextMessages = prev.messages;
+        let nextReferrals = prev.referrals;
         let resultRef = 'Approved';
+        const dedupeTag = action.idempotencyKey ? `[idemp:${action.idempotencyKey}]` : `[act:${action.id}]`;
 
         if (action.kind === 'Lab Order') {
-          const reqId = `REQ-${Math.floor(88600 + Math.random() * 350)}`;
-          nextOrders = [
-            {
-              id: `ord-${Date.now()}`,
-              requisitionId: reqId,
-              patientId: session.patientId,
-              encounterId: session.encounterId,
-              orderedById: prev.currentUserId,
-              facilityId: pat?.facilityId || prev.currentFacilityId,
-              category: 'Lab',
-              name: action.payload.name || 'Renal Function & Serum Potassium Panel',
-              code: action.payload.code || '80048',
-              priority: (action.payload.priority as ClinicalOrder['priority']) || 'Routine',
-              status: 'Ordered',
-              createdAt: TODAY_DATE,
-            },
-            ...nextOrders,
-          ];
-          resultRef = `Ordered (${reqId})`;
+          const existing = nextOrders.find(
+            (o) =>
+              o.patientId === session.patientId &&
+              o.encounterId === session.encounterId &&
+              ((o.notes || '').includes(dedupeTag) ||
+                o.name.toLowerCase() === (action.payload.name || action.title).toLowerCase())
+          );
+          if (existing) {
+            resultRef = `Ordered (${existing.requisitionId}) — deduplicated`;
+          } else {
+            const reqId = `REQ-${Math.floor(88600 + Math.random() * 350)}`;
+            nextOrders = [
+              {
+                id: `ord-${Date.now()}`,
+                requisitionId: reqId,
+                patientId: session.patientId,
+                encounterId: session.encounterId,
+                orderedById: prev.currentUserId,
+                facilityId: pat?.facilityId || prev.currentFacilityId,
+                category: 'Lab',
+                name: action.payload.name || 'Renal Function & Serum Potassium Panel',
+                code: action.payload.code || '80048',
+                priority: (action.payload.priority as ClinicalOrder['priority']) || 'Routine',
+                status: 'Ordered',
+                createdAt: TODAY_DATE,
+                notes: `Clinician approved via Action Composer ${dedupeTag}`,
+              },
+              ...nextOrders,
+            ];
+            resultRef = `Ordered (${reqId})`;
+          }
         } else if (action.kind === 'Medication Draft') {
-          nextMeds = [
-            {
-              id: `med-${Date.now()}`,
-              patientId: session.patientId,
-              name: action.payload.name || 'Amlodipine Besylate',
-              dose: action.payload.dose || '5 mg',
-              route: 'Oral',
-              frequency: action.payload.frequency || 'Once daily',
-              duration: action.payload.duration || '30 days',
-              status: 'Active',
-              prescriberId: prev.currentUserId,
-              pharmacy: action.payload.pharmacy || 'CVS Boylston #0412',
-              formularyStatus: 'Tier 1 Preferred',
-              controlled: false,
-              reconciled: true,
-              startDate: TODAY_DATE,
-              refillsRemaining: 2,
-              safetyNote: 'Clinician approved synthetic medication (not transmitted externally).',
-            },
-            ...nextMeds,
-          ];
-          resultRef = 'Active (Simulated — not transmitted)';
+          const medName = action.payload.name || 'Amlodipine Besylate';
+          const existing = nextMeds.find(
+            (m) => m.patientId === session.patientId && (m.safetyNote || '').includes(dedupeTag)
+          );
+          if (existing) {
+            resultRef = `Active (${existing.name}) — deduplicated`;
+          } else {
+            nextMeds = [
+              {
+                id: `med-${Date.now()}`,
+                patientId: session.patientId,
+                name: medName,
+                dose: action.payload.dose || '5 mg',
+                route: 'Oral',
+                frequency: action.payload.frequency || 'Once daily',
+                duration: action.payload.duration || '30 days',
+                status: 'Active',
+                prescriberId: prev.currentUserId,
+                pharmacy: action.payload.pharmacy || 'CVS Boylston #0412',
+                formularyStatus: 'Tier 1 Preferred',
+                controlled: false,
+                reconciled: true,
+                startDate: TODAY_DATE,
+                refillsRemaining: 2,
+                safetyNote: `Clinician approved synthetic medication (not transmitted externally). ${dedupeTag}`,
+              },
+              ...nextMeds,
+            ];
+            resultRef = 'Active (Simulated — not transmitted)';
+          }
         } else if (action.kind === 'Follow-Up Plan') {
-          nextPlans = [
-            {
-              id: `fp-${Date.now()}`,
-              patientId: session.patientId,
-              encounterId: session.encounterId,
-              providerId: prev.currentUserId,
-              facilityId: pat?.facilityId || prev.currentFacilityId,
-              interval: action.payload.interval || '2 weeks',
-              instructions: action.payload.instructions || 'Follow up with labs and home BP log.',
-              createdAt: TODAY_DATE,
-              reminderChannel: 'Simulated SMS',
-              reminderStatus: 'Not Scheduled',
-            },
-            ...nextPlans,
-          ];
-          resultRef = `Follow-Up Plan (${action.payload.interval || '2 weeks'})`;
+          const existing = nextPlans.find(
+            (fp) => fp.patientId === session.patientId && fp.encounterId === session.encounterId && fp.interval === (action.payload.interval || '2 weeks')
+          );
+          if (existing) {
+            resultRef = `Follow-Up Plan (${existing.interval}) — deduplicated`;
+          } else {
+            nextPlans = [
+              {
+                id: `fp-${Date.now()}`,
+                patientId: session.patientId,
+                encounterId: session.encounterId,
+                providerId: prev.currentUserId,
+                facilityId: pat?.facilityId || prev.currentFacilityId,
+                interval: action.payload.interval || '2 weeks',
+                instructions: action.payload.instructions || 'Follow up with labs and home BP log.',
+                createdAt: TODAY_DATE,
+                reminderChannel: 'Simulated SMS',
+                reminderStatus: 'Not Scheduled',
+              },
+              ...nextPlans,
+            ];
+            resultRef = `Follow-Up Plan (${action.payload.interval || '2 weeks'})`;
+          }
         } else if (action.kind === 'Task') {
-          nextTasks = [
-            {
-              id: `tsk-${Date.now()}`,
-              title: action.title,
-              status: 'To Do',
-              priority: (action.payload.priority as TaskItem['priority']) || 'High',
-              ownerId: action.payload.ownerId || 'staff-2',
-              team: 'Care Coordination',
-              facilityId: pat?.facilityId || prev.currentFacilityId,
-              patientId: session.patientId,
-              dueDate: action.payload.dueDate || '2026-11-23',
-              patientVisible: false,
-              timeLoggedMin: 0,
-              subtasks: [],
-              comments: [],
-              history: [{ id: `th-${Date.now()}`, timestamp: `${TODAY_DATE} 11:30`, event: 'Approved via Post-Consultation Composer' }],
-            },
-            ...nextTasks,
-          ];
-          resultRef = 'Handoff task queued';
+          const existing = nextTasks.find(
+            (t) => t.patientId === session.patientId && (t.description || '').includes(dedupeTag)
+          );
+          if (existing) {
+            resultRef = 'Handoff task already queued — deduplicated';
+          } else {
+            nextTasks = [
+              {
+                id: `tsk-${Date.now()}`,
+                title: action.title,
+                description: `${action.summary} ${dedupeTag}`,
+                status: 'To Do',
+                priority: (action.payload.priority as TaskItem['priority']) || 'High',
+                ownerId: action.payload.ownerId || 'staff-2',
+                team: 'Care Coordination',
+                facilityId: pat?.facilityId || prev.currentFacilityId,
+                patientId: session.patientId,
+                dueDate: action.payload.dueDate || '2026-11-23',
+                patientVisible: false,
+                timeLoggedMin: 0,
+                subtasks: [],
+                comments: [],
+                history: [{ id: `th-${Date.now()}`, timestamp: `${TODAY_DATE} 11:30`, event: 'Approved via Post-Consultation Composer' }],
+              },
+              ...nextTasks,
+            ];
+            resultRef = 'Handoff task queued';
+          }
         } else if (action.kind === 'Patient Message') {
           nextMessages = [
             {
@@ -2574,7 +2657,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               ownerId: prev.currentUserId,
               priority: 'Normal',
               status: 'Open',
-              tags: ['After-Visit Summary'],
+              tags: ['After-Visit Summary', 'Clinician Approved'],
               participants: [pat?.fullName || 'Patient', 'Clinician'],
               messages: [
                 {
@@ -2584,7 +2667,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                   isInternalNote: false,
                   channel: 'In-App',
                   timestamp: `${TODAY_DATE} 11:30`,
-                  body: action.payload.body || 'After-visit instructions reviewed.',
+                  body: action.payload.body || action.payload.instructions || 'After-visit instructions reviewed.',
                   deliveryStatus: 'Simulated',
                 },
               ],
@@ -2592,6 +2675,33 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             ...nextMessages,
           ];
           resultRef = 'AVS message created';
+        } else if (action.kind === 'Referral') {
+          const specialty = action.payload.specialty || 'Specialty Consultation';
+          const existing = nextReferrals.find(
+            (r) => r.patientId === session.patientId && r.reason.includes(dedupeTag)
+          );
+          if (existing) {
+            resultRef = `Referral (${existing.specialty}) — deduplicated`;
+          } else {
+            const actorName = prev.staff.find((s) => s.id === prev.currentUserId)?.name || 'Clinician';
+            nextReferrals = [
+              {
+                id: `ref-${Date.now()}`,
+                patientId: session.patientId,
+                facilityId: pat?.facilityId || prev.currentFacilityId,
+                direction: 'Outgoing',
+                specialty,
+                referringProvider: actorName,
+                targetProvider: `${specialty} Consult Service`,
+                urgency: action.payload.priority === 'Urgent' ? 'Urgent' : 'Routine',
+                reason: `${action.summary} ${dedupeTag}`,
+                status: 'Received',
+                createdAt: TODAY_DATE,
+              },
+              ...nextReferrals,
+            ];
+            resultRef = `Outgoing Referral queued (${specialty})`;
+          }
         }
 
         return {
@@ -2601,6 +2711,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           followUpPlans: nextPlans,
           tasks: nextTasks,
           messages: nextMessages,
+          referrals: nextReferrals,
           scribeSessions: (prev.scribeSessions || []).map((s) =>
             s.id === scribeSessionId
               ? {
@@ -2980,6 +3091,176 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [appendAudit, notify]
   );
 
+  const applyAiDocumentAnalysis = useCallback(
+    (
+      itemId: string,
+      analysis: {
+        documentType: PatientDataInboxItem['category'];
+        documentDate?: string;
+        laboratoryOrFacilityIdentity?: string;
+        extractedPatientIdentity: PatientDataInboxItem['extractedIdentity'];
+        summary: string;
+        labMeasurements: NonNullable<PatientDataInboxItem['aiLabMeasurements']>;
+        extractedFields: PatientDataInboxItem['extractedFields'];
+        missingOrAmbiguousFlags: string[];
+        identitySafetyNote?: string;
+        executionMode: 'live-ai' | 'deterministic-demo';
+        modelId: string;
+        requestId: string;
+      }
+    ) => {
+      setState((prev) => ({
+        ...prev,
+        dataInboxItems: (prev.dataInboxItems || []).map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                category: analysis.documentType || item.category,
+                documentDate: analysis.documentDate || item.documentDate,
+                sourceOrganization: analysis.laboratoryOrFacilityIdentity || item.sourceOrganization,
+                extractedIdentity: {
+                  ...item.extractedIdentity,
+                  ...analysis.extractedPatientIdentity,
+                },
+                status: 'AI Extracted' as const,
+                extractedFields:
+                  analysis.extractedFields.length > 0 ? analysis.extractedFields : item.extractedFields,
+                aiExecutionMode: analysis.executionMode,
+                aiModelId: analysis.modelId,
+                aiRequestId: analysis.requestId,
+                aiSummary: analysis.summary,
+                aiLabMeasurements: analysis.labMeasurements,
+                aiMissingFlags: analysis.missingOrAmbiguousFlags,
+                aiIdentitySafetyNote: analysis.identitySafetyNote,
+              }
+            : item
+        ),
+        auditEvents: appendAudit(
+          prev,
+          `AI Document Intelligence (${analysis.executionMode === 'live-ai' ? 'Live AI' : 'Deterministic Demo'})`,
+          'Document',
+          itemId,
+          `Model ${analysis.modelId} (${analysis.requestId}) extracted ${analysis.extractedFields.length} reviewable field(s) & ${analysis.labMeasurements.length} lab line(s); human review required`
+        ),
+      }));
+      notify(
+        'info',
+        `${analysis.executionMode === 'live-ai' ? 'Live AI' : 'Deterministic Demo'} extracted ${analysis.extractedFields.length} candidate field(s) — human review required`
+      );
+    },
+    [appendAudit, notify]
+  );
+
+  const stageAiComposerProposals = useCallback(
+    (params: {
+      patientId: string;
+      encounterId: string;
+      transcript?: string;
+      soap?: Encounter['soap'];
+      proposals?: AiProposedAction[];
+      executionMode: 'live-ai' | 'deterministic-demo';
+      modelId: string;
+      requestId: string;
+    }) => {
+      setState((prev) => {
+        const existingSession = (prev.scribeSessions || []).find(
+          (s) => s.encounterId === params.encounterId && s.patientId === params.patientId
+        );
+        const ts = `${TODAY_DATE} ${new Date().toTimeString().slice(0, 5)} EST`;
+        const nextSession = {
+          id: existingSession?.id || `scribe-ai-${Date.now()}`,
+          patientId: params.patientId,
+          encounterId: params.encounterId,
+          status: 'Draft Ready' as const,
+          transcript: params.transcript ?? existingSession?.transcript ?? '',
+          generatedSoap: params.soap ?? existingSession?.generatedSoap,
+          proposedActions: params.proposals ?? existingSession?.proposedActions ?? [],
+          updatedAt: ts,
+        };
+        return {
+          ...prev,
+          scribeSessions: [
+            nextSession,
+            ...(prev.scribeSessions || []).filter((s) => s.id !== nextSession.id),
+          ],
+          encounters: params.soap
+            ? prev.encounters.map((e) =>
+                e.id === params.encounterId
+                  ? {
+                      ...e,
+                      scribeTranscript: params.transcript ?? e.scribeTranscript,
+                      soap: params.soap!,
+                      // Strictly NEVER auto-sign an AI draft
+                      noteStatus: e.noteStatus === 'Signed' ? 'Signed' : ('Draft' as const),
+                    }
+                  : e
+              )
+            : prev.encounters,
+          auditEvents: appendAudit(
+            prev,
+            params.proposals
+              ? `AI Action Composer (${params.executionMode === 'live-ai' ? 'Live AI' : 'Deterministic Demo'})`
+              : `Ambient Scribe V2 (${params.executionMode === 'live-ai' ? 'Live AI' : 'Deterministic Demo'})`,
+            'Encounter',
+            params.encounterId,
+            `Model ${params.modelId} (${params.requestId})${
+              params.proposals ? ` staged ${params.proposals.length} reviewable action(s)` : ' generated editable SOAP draft (unsigned)'
+            }`
+          ),
+        };
+      });
+    },
+    [appendAudit]
+  );
+
+  const updateComposerProposal = useCallback(
+    (
+      scribeSessionId: string,
+      actionId: string,
+      patch: { title?: string; summary?: string; payload?: Record<string, string> }
+    ) => {
+      setState((prev) => ({
+        ...prev,
+        scribeSessions: (prev.scribeSessions || []).map((s) =>
+          s.id === scribeSessionId
+            ? {
+                ...s,
+                proposedActions: s.proposedActions.map((a) =>
+                  a.id === actionId
+                    ? {
+                        ...a,
+                        ...(patch.title !== undefined ? { title: patch.title } : {}),
+                        ...(patch.summary !== undefined ? { summary: patch.summary } : {}),
+                        ...(patch.payload !== undefined ? { payload: { ...a.payload, ...patch.payload } } : {}),
+                      }
+                    : a
+                ),
+              }
+            : s
+        ),
+        auditEvents: appendAudit(
+          prev,
+          'Edit Proposed Action Draft',
+          'AiAction',
+          actionId,
+          `Clinician edited proposal draft before approval`
+        ),
+      }));
+      notify('info', 'Updated proposed action draft — still awaiting explicit approval');
+    },
+    [appendAudit, notify]
+  );
+
+  const recordClinicalAiAudit = useCallback(
+    (action: string, targetType: string, targetId: string, detail: string) => {
+      setState((prev) => ({
+        ...prev,
+        auditEvents: appendAudit(prev, action, targetType, targetId, detail),
+      }));
+    },
+    [appendAudit]
+  );
+
   const replaceEntireState = useCallback((nextState: AppState) => {
     setState({ ...nextState, unsavedDirty: false });
   }, []);
@@ -3082,6 +3363,10 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         decideInboxExtractedField,
         commitVerifiedInboxItem,
         decideClinicalRecommendation,
+        applyAiDocumentAnalysis,
+        stageAiComposerProposals,
+        updateComposerProposal,
+        recordClinicalAiAudit,
         replaceEntireState,
       }}
     >

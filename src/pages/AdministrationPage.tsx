@@ -8,8 +8,11 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sliders,
+  Sparkles,
   Workflow,
 } from 'lucide-react';
+import { clinicalAiAuditService } from '../ai/clinicalAiService';
+import { ClinicalAiModeToggle, useClinicalAiFlags } from '../components/ai/ClinicalAiControls';
 import { useAppState } from '../state/AppStateContext';
 import type { AuthorizedFhirExportOutcome, FhirExportMode } from '../state/fhirExport';
 import { canExportPatientFhir, canManageAdministration } from '../state/permissions';
@@ -38,12 +41,14 @@ export const AdministrationPage: React.FC = () => {
   const [exportMode, setExportMode] = useState<FhirExportMode>('masked');
   const [confirmedIdentifiable, setConfirmedIdentifiable] = useState(false);
   const [lastExport, setLastExport] = useState<AuthorizedFhirExportOutcome | null>(null);
+  const { flags, updateFlags, serverStatus } = useClinicalAiFlags();
+  const aiProvenanceRecords = clinicalAiAuditService.list();
 
   if (!canManageAdministration(state.currentRole)) {
     return (
       <div
         data-demo-target="admin-restricted-banner"
-        className="bg-white border border-red-200 rounded-lg p-6 space-y-2 text-xs"
+        className="eigen-card border-red-200 p-6 space-y-2 text-xs"
       >
         <div className="flex items-center gap-2 text-[#B4321F] font-semibold text-sm">
           <ShieldAlert className="w-5 h-5" />
@@ -113,12 +118,12 @@ export const AdministrationPage: React.FC = () => {
           data-demo-target="admin-fhir-export-panel"
           className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs"
         >
-          <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
-            <div className="flex items-center gap-2 font-semibold text-[#042C53]">
+          <div className="eigen-card p-5 space-y-3.5">
+            <div className="flex items-center gap-2 font-semibold text-[#042C53] text-sm">
               <FileCode2 className="w-4 h-4 text-[#185FA5]" />
               HL7 FHIR R4 Patient Bundle Generator
             </div>
-            <div className="p-2.5 bg-[#E6F1FB]/50 border border-[#85B7EB]/60 rounded text-[11px] text-[#042C53] flex items-start gap-2">
+            <div className="p-3 bg-[#E6F1FB]/55 border border-[#85B7EB]/65 rounded-xl text-[11px] text-[#042C53] flex items-start gap-2">
               <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[#185FA5]" />
               <span>
                 Strictly restricted to <strong>Administrator</strong> ({canExportPatientFhir(state.currentRole) ? 'Authorized' : 'Denied'}). Default mode masks/pseudonymizes PII across all FHIR fields and attachments.
@@ -199,7 +204,7 @@ export const AdministrationPage: React.FC = () => {
                 type="button"
                 data-demo-target="fhir-generate-btn"
                 onClick={handleRunExport}
-                className="flex-1 px-3 py-2 bg-[#185FA5] hover:bg-[#042C53] text-white font-medium rounded-md"
+                className="eigen-btn-primary flex-1 justify-center text-xs"
               >
                 Generate & Validate FHIR R4
               </button>
@@ -208,7 +213,7 @@ export const AdministrationPage: React.FC = () => {
                   type="button"
                   data-demo-target="fhir-download-btn"
                   onClick={handleDownloadJson}
-                  className="inline-flex items-center gap-1 px-3 py-2 border border-slate-300 text-[#042C53] font-medium rounded-md hover:bg-slate-50"
+                  className="eigen-btn-secondary text-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
                   .fhir.json
@@ -217,8 +222,8 @@ export const AdministrationPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-2 bg-white border border-slate-200 rounded-lg p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+          <div className="lg:col-span-2 eigen-card p-5 space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#042C53]/8 pb-2.5">
               <div className="font-semibold text-[#042C53]">Structural Validation & Bundle Preview</div>
               {lastExport?.validation && (
                 <StatusBadge
@@ -384,6 +389,79 @@ export const AdministrationPage: React.FC = () => {
             <strong>Human-in-the-Loop Policy:</strong> AI assistance drafts orders, notes, messages, and coding suggestions with source citations. No autonomous signing, prescribing, or clinical decisions occur.
           </div>
 
+          {/* Phase 2 Clinical AI Runtime Feature Flags & Provenance Governance */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+            <div className="eigen-card p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="font-semibold text-[#042C53] flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-[#185FA5]" />
+                  Phase 2 Clinical AI Runtime Feature Flags
+                </div>
+                <StatusBadge
+                  label={serverStatus?.configured ? `Server Gemini Ready (${serverStatus.model})` : 'Deterministic Only'}
+                  tone={serverStatus?.configured ? 'success' : 'warning'}
+                />
+              </div>
+              <ClinicalAiModeToggle
+                mode={flags.executionMode}
+                onChangeMode={(m) => updateFlags({ executionMode: m })}
+                serverConfigured={serverStatus?.configured}
+              />
+              <div className="space-y-1.5 pt-1">
+                {(
+                  [
+                    ['documentIntelligence', 'Feature 1 · Real AI Document Intelligence (Data Inbox)'],
+                    ['preConsultationBrief', 'Feature 2 · AI Pre-Consultation Intelligence Brief'],
+                    ['chartSearch', 'Feature 3 · Ask EigenH Clinical Chart Search'],
+                    ['ambientScribeV2', 'Feature 4 · Ambient Clinical Scribe V2'],
+                    ['actionComposer', 'Feature 5 · AI Clinical Action Composer'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="flex items-center justify-between p-2 border border-slate-200 rounded-lg bg-[#FAF9F6]">
+                    <span className="text-[#042C53] font-medium">{label}</span>
+                    <input
+                      type="checkbox"
+                      checked={flags[key]}
+                      onChange={(e) => updateFlags({ [key]: e.target.checked })}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="eigen-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="font-semibold text-[#042C53] flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-[#0F6E50]" />
+                  Clinical AI Provenance &amp; Audit Log ({aiProvenanceRecords.length})
+                </div>
+                <span className="text-[10.5px] font-mono text-[#5F5D56]">Synthetic Data Only</span>
+              </div>
+              {aiProvenanceRecords.length === 0 ? (
+                <p className="text-[#5F5D56] py-3">
+                  No Phase 2 Clinical AI invocations logged in this session yet. Run Document Intelligence, Pre-Consultation Brief, Ask EigenH, Ambient Scribe V2, or Action Composer to populate provenance records.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto eigen-scroll">
+                  {aiProvenanceRecords.slice(0, 12).map((rec) => (
+                    <div key={rec.id} className="py-2 first:pt-0 space-y-0.5 text-[11px]">
+                      <div className="flex flex-wrap items-center justify-between gap-1">
+                        <span className="font-semibold text-[#042C53]">{rec.operation}</span>
+                        <StatusBadge
+                          label={rec.executionMode === 'live-ai' ? 'Live AI' : 'Deterministic Demo'}
+                          tone={rec.executionMode === 'live-ai' ? 'blue' : 'neutral'}
+                        />
+                      </div>
+                      <div className="font-mono text-[10px] text-[#5F5D56]">
+                        {rec.modelId} · {rec.latencyMs}ms · {rec.reviewState} · Actor: {rec.actorName} ({rec.actorRole})
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-200 text-xs font-semibold text-[#042C53] flex items-center gap-2">
               <Workflow className="w-4 h-4 text-[#185FA5]" />
@@ -441,9 +519,9 @@ export const AdministrationPage: React.FC = () => {
 
       {/* M34 Integrations */}
       {tab === 'integrations' && (
-        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+        <div className="eigen-card overflow-hidden">
           <table className="w-full text-left border-collapse text-xs">
-            <thead className="bg-[#F7F7F5] border-b border-slate-200 text-[11px] font-medium text-[#5F5D56]">
+            <thead className="eigen-table-head">
               <tr>
                 <th className="py-2.5 px-3">System / Interface</th>
                 <th className="py-2.5 px-3">Category</th>
@@ -502,9 +580,9 @@ export const AdministrationPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <div className="eigen-card overflow-hidden">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-[#F7F7F5] border-b border-slate-200 text-[11px] font-medium text-[#5F5D56]">
+              <thead className="eigen-table-head">
                 <tr>
                   <th className="py-2.5 px-3">Timestamp</th>
                   <th className="py-2.5 px-3">Actor & Preview Role</th>

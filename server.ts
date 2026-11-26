@@ -5,13 +5,39 @@ import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
+import { CLINICAL_AI_TEXT_MODEL, createClinicalAiRouter } from './server/clinicalAiRouter.ts';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = Number(process.env.PORT || 3000);
+function parseCliArg(args: readonly string[], flag: string): string | undefined {
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === flag && i + 1 < args.length) {
+      return args[i + 1];
+    }
+    if (arg.startsWith(`${flag}=`)) {
+      return arg.slice(flag.length + 1);
+    }
+  }
+  return undefined;
+}
+
+export function resolveServerBindConfig(
+  argv: readonly string[] = process.argv.slice(2),
+  env: NodeJS.ProcessEnv = process.env
+): { port: number; host: string } {
+  const cliPort = parseCliArg(argv, '--port');
+  const rawPort = cliPort ?? env.PORT ?? '3000';
+  const parsedPort = Number(rawPort);
+  const port = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort <= 65535 ? parsedPort : 3000;
+  const host = parseCliArg(argv, '--host') ?? env.HOST ?? '0.0.0.0';
+  return { port, host };
+}
+
+const { port: PORT, host: HOST } = resolveServerBindConfig();
 const IS_PROD = process.env.NODE_ENV === 'production';
 const DEFAULT_TTS_MODEL = 'gemini-3.8-flash-lite-tts';
 const MAX_TEXT_LENGTH = 1200;
@@ -242,6 +268,7 @@ async function synthesizeWithGeminiTTS(
 async function startServer() {
   const app = express();
   app.disable('x-powered-by');
+  app.use('/api/clinical-ai', express.json({ limit: '256kb' }), createClinicalAiRouter());
   app.use(express.json({ limit: '32kb' }));
 
   // Health & Neural TTS configuration status (never returns any API key)
@@ -376,8 +403,13 @@ async function startServer() {
 
   if (!IS_PROD) {
     const { createServer: createViteServer } = await import('vite');
+    const disableHmr = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        allowedHosts: true,
+        ...(disableHmr ? { hmr: false, ws: false } : {}),
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -391,16 +423,34 @@ async function startServer() {
     }
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, HOST, () => {
     console.log(
-      `[EigenH Server] Listening on http://0.0.0.0:${PORT} | Gemini Neural TTS (${DEFAULT_TTS_MODEL}, compare: gemini-3.8-flash-tts): ${
+      `[EigenH Server] Listening on http://${HOST}:${PORT} | Clinical AI (${CLINICAL_AI_TEXT_MODEL}) & Gemini Neural TTS (${DEFAULT_TTS_MODEL}): ${
         isValidApiKey(process.env.GEMINI_API_KEY) ? 'CONFIGURED' : 'NOT CONFIGURED (fallback mode)'
       }`
     );
   });
+
+  server.on('error', (err) => {
+    console.error(`[EigenH Server] HTTP server error on ${HOST}:${PORT}:`, err);
+    process.exit(1);
+  });
 }
 
-// Only auto-start when invoked directly (allows importing parseWavDurationSeconds in node:test)
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  void startServer();
+function isDirectExecution(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return fs.realpathSync(entry) === fs.realpathSync(__filename);
+  } catch {
+    return path.resolve(entry) === __filename;
+  }
+}
+
+// Only auto-start when invoked directly (allows importing helpers in node:test)
+if (isDirectExecution()) {
+  startServer().catch((err) => {
+    console.error('[EigenH Server] Failed to start:', err);
+    process.exit(1);
+  });
 }

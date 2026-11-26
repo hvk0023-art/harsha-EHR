@@ -534,18 +534,121 @@ Note: Printed dose smudged (10 mg vs 20 mg) — verify strength with patient.`,
       },
     ],
   },
+  {
+    templateId: 'tpl-in-discharge-summary',
+    title: 'Manipal Heart & Renal Center — Cardiology/Renal Discharge Summary (Synthetic)',
+    category: 'Discharge Summary',
+    sourceAdapter: 'External Clinic PDF (Demo)',
+    sourceOrganization: 'Manipal Heart & Renal Center (Synthetic)',
+    documentDate: '2026-11-10',
+    rawPreviewText: `HOSPITAL DISCHARGE SUMMARY (SYNTHETIC)
+Patient: Aarav Mehta | DOB: 1979-08-15 | Phone: +91 98452 33109
+Admission Date: 2026-11-08 | Discharge Date: 2026-11-10
+Facility: Manipal Heart & Renal Center (Synthetic)
+Primary Diagnosis: Hypertensive Urgency with Chronic Kidney Disease Stage 3a (I10 / N18.3)
+Discharge Labs:
+- Serum Creatinine: 1.54 mg/dL (Ref: 0.70 - 1.30 mg/dL)
+- eGFR: 51 mL/min/1.73m2 (Ref: >= 60 mL/min/1.73m2)
+- Serum Potassium: 4.9 mEq/L
+Discharge Medications:
+- Amlodipine 5 mg PO once daily
+- Telmisartan 40 mg PO once daily
+Follow-up: Repeat renal panel and potassium in 10 days with primary clinician.`,
+    extractedIdentity: {
+      fullName: 'Aarav Mehta',
+      dob: '1979-08-15',
+      phone: '+91 98452 33109',
+      mrnOrExternalId: 'MHRC-DS-2026-1110',
+    },
+    extractedFields: [
+      {
+        id: 'extf-ds-creatinine',
+        label: 'Discharge Serum Creatinine',
+        value: '1.54 mg/dL',
+        targetSection: 'Lab',
+        sourceSnippet: 'Serum Creatinine: 1.54 mg/dL (Ref: 0.70 - 1.30 mg/dL)',
+        confidence: 'High',
+        uncertain: false,
+        metadata: {
+          testName: 'Serum Creatinine',
+          value: '1.54',
+          numericValue: '1.54',
+          unit: 'mg/dL',
+          referenceInterval: '0.70 - 1.30 mg/dL',
+          flag: 'Abnormal',
+        },
+      },
+      {
+        id: 'extf-ds-potassium',
+        label: 'Discharge Serum Potassium (No Ref Printed)',
+        value: '4.9 mEq/L',
+        targetSection: 'Lab',
+        sourceSnippet: 'Serum Potassium: 4.9 mEq/L',
+        confidence: 'Medium',
+        uncertain: true,
+        uncertaintyReason: 'Reference range was not printed on discharge summary; verify against hospital laboratory report.',
+        metadata: {
+          testName: 'Serum Potassium',
+          value: '4.9',
+          numericValue: '4.9',
+          unit: 'mEq/L',
+          referenceInterval: 'Not stated in source document',
+          flag: 'Normal',
+        },
+      },
+    ],
+  },
+  {
+    templateId: 'tpl-in-consult-note',
+    title: 'Nephrology Specialist Consultation Note — External Clinic (Synthetic)',
+    category: 'Clinical Consultation Note',
+    sourceAdapter: 'External Clinic PDF (Demo)',
+    sourceOrganization: 'South Bengaluru Nephrology Associates (Synthetic)',
+    documentDate: '2026-11-12',
+    rawPreviewText: `CLINICAL CONSULTATION NOTE (SYNTHETIC)
+Patient: Aarav Mehta | DOB: 1979-08-15 | Phone: +91 98452 33109
+Consultant: Dr. Kavitha Rao, DM Nephrology (Synthetic)
+Date: 2026-11-12
+Assessment:
+- CKD Stage 3a (N18.3) — stable eGFR 51 mL/min/1.73m2; mild albuminuria.
+- Essential Hypertension (I10) — home BP averaging 142/88 mmHg.
+Recommendations (For Primary Clinician Review):
+- Continue Telmisartan 40 mg daily; avoid NSAIDs.
+- Order Urine Albumin-to-Creatinine Ratio (uACR) and repeat eGFR in 4 weeks.`,
+    extractedIdentity: {
+      fullName: 'Aarav Mehta',
+      dob: '1979-08-15',
+      phone: '+91 98452 33109',
+      mrnOrExternalId: 'SBNA-CN-4412',
+    },
+    extractedFields: [
+      {
+        id: 'extf-cn-summary',
+        label: 'Nephrology Consultation Summary',
+        value: 'CKD Stage 3a (eGFR 51); avoid NSAIDs; repeat uACR and eGFR in 4 weeks.',
+        targetSection: 'History',
+        sourceSnippet: 'CKD Stage 3a (N18.3) — stable eGFR 51; avoid NSAIDs; order uACR and repeat eGFR in 4 weeks.',
+        confidence: 'High',
+        uncertain: false,
+        metadata: {
+          historyCategory: 'Medical',
+          title: 'Nephrology Specialist Consultation (2026-11-12)',
+        },
+      },
+    ],
+  },
 ];
 
 export function classifySyntheticDocument(filenameOrTitle: string, contentText: string): InboxDocumentCategory {
   const combined = `${filenameOrTitle} ${contentText}`.toLowerCase();
+  if (/\b(discharge summary|hospital course|discharge date|discharged)\b/.test(combined)) {
+    return 'Discharge Summary';
+  }
   if (/\b(hba1c|glucose|creatinine|egfr|cbc|lipid|pathology|lab|diagnostic|blood test)\b/.test(combined)) {
     return 'Laboratory Report';
   }
   if (/\b(x-?ray|ultrasound|usg|ct scan|mri|radiology|impression|modality)\b/.test(combined)) {
     return 'Imaging Report';
-  }
-  if (/\b(discharge summary|hospital course|discharged)\b/.test(combined)) {
-    return 'Discharge Summary';
   }
   if (/\b(pharmacy|dispensed|refill|medplus|apollo pharmacy|cvs)\b/.test(combined)) {
     return 'Pharmacy Information';

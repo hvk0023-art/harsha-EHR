@@ -32,11 +32,11 @@ function freshState(): AppState {
 }
 
 describe('EigenH Guided Demo Academy V2 Engine', () => {
-  it('registers all 11 Library scenarios + all 8 dedicated Role Workflow Tutorials', () => {
-    assert.equal(DEMO_DIRECTOR_SCENARIOS.length, 11);
+  it('registers all 12 Library scenarios + all 8 dedicated Role Workflow Tutorials', () => {
+    assert.equal(DEMO_DIRECTOR_SCENARIOS.length, 12);
     assert.equal(ROLE_TUTORIAL_SCENARIOS.length, 8);
     assert.equal(ROLE_TUTORIAL_CARDS.length, 8);
-    assert.equal(ALL_ACADEMY_SCENARIOS.length, 19);
+    assert.equal(ALL_ACADEMY_SCENARIOS.length, 20);
 
     for (const card of ROLE_TUTORIAL_CARDS) {
       const scen = getScenarioById(card.scenarioId);
@@ -51,7 +51,7 @@ describe('EigenH Guided Demo Academy V2 Engine', () => {
     assert.equal(getScenarioById('role-clinician')?.scenes.length, 12);
   });
 
-  it('executes every single one of the 19 Academy scenarios (11 Library + 8 Role Tutorials) with 100% passing assertions', () => {
+  it('executes every single one of the 20 Academy scenarios (12 Library + 8 Role Tutorials) with 100% passing assertions', () => {
     for (const scenario of ALL_ACADEMY_SCENARIOS) {
       const result = runEntireScenarioSync(scenario, freshState());
       assert.equal(
@@ -129,8 +129,13 @@ describe('EigenH Guided Demo Academy V2 Engine', () => {
     assert.match(efficiency.methodologyNote, /No unmeasured time-savings percentages/i);
   });
 
-  it('guarantees idempotent double-replay with zero duplicate records across Complete Journey, Front Desk, and Clinician tutorials', () => {
-    const ids = ['demo-01-scheduled-journey', 'role-front-desk', 'role-clinician'];
+  it('guarantees idempotent double-replay with zero duplicate records across Complete Journey, Phase 2 AI Intelligence, Front Desk, and Clinician tutorials', () => {
+    const ids = [
+      'demo-01-scheduled-journey',
+      'demo-20-ai-clinical-intelligence',
+      'role-front-desk',
+      'role-clinician',
+    ];
     for (const id of ids) {
       const scenario = getScenarioById(id)!;
       const run1 = runEntireScenarioSync(scenario, freshState());
@@ -313,7 +318,7 @@ describe('EigenH Guided Demo Academy V2 Engine', () => {
     assert.deepEqual(regCounts(run2.nextAppState), regCounts(run1.nextAppState));
   });
 
-  it('executes all 19 Academy scenarios to 100% completion even from a stale state missing pat-9, pat-1, and extdoc-1', () => {
+  it('executes all 20 Academy scenarios to 100% completion even from a stale state missing pat-9, pat-1, and extdoc-1', () => {
     const stale = freshState();
     stale.patients = stale.patients.filter((p) => p.id !== 'pat-9' && p.id !== 'pat-1');
     stale.externalDocQueue = [];
