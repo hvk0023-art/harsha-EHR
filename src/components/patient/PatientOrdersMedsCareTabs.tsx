@@ -3,7 +3,7 @@ import { AlertTriangle, Check, FlaskConical, Plus, Scan } from 'lucide-react';
 import { TODAY_DATE } from '../../data/seedData';
 import { useAppState } from '../../state/AppStateContext';
 import { checkMedicationAllergyConflict } from '../../state/domainLogic';
-import { canOrderOrPrescribe } from '../../state/permissions';
+import { canAdvanceLabOrder, canOrderOrPrescribe } from '../../state/permissions';
 import type { Patient, ReferralStatus } from '../../types/hms';
 import { SimpleLineChart } from '../ui/Charts';
 import {
@@ -262,6 +262,8 @@ export const PatientOrdersResultsTab: React.FC<{ patient: Patient }> = ({ patien
     .map((l) => ({ label: l.collectionDate.slice(5), value: l.numericValue! }));
 
   const pacsStudy = imaging.find((i) => i.id === showMockPacs);
+  const canAuthorizeOrder = canOrderOrPrescribe(state.currentRole);
+  const canProcessLab = canAdvanceLabOrder(state.currentRole);
 
   return (
     <div data-demo-target="orders-results-panel" className="space-y-4 text-xs">
@@ -277,8 +279,14 @@ export const PatientOrdersResultsTab: React.FC<{ patient: Patient }> = ({ patien
         />
         <button
           type="button"
+          disabled={!canAuthorizeOrder}
+          title={
+            canAuthorizeOrder
+              ? 'Place a new synthetic clinical order'
+              : `Role "${state.currentRole}" cannot authorize clinical orders`
+          }
           onClick={() => setShowNewOrder(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 font-medium text-white bg-[#185FA5] rounded-md"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 font-medium text-white bg-[#185FA5] rounded-md disabled:opacity-45"
         >
           <Plus className="w-3.5 h-3.5" />
           New Order
@@ -325,13 +333,19 @@ export const PatientOrdersResultsTab: React.FC<{ patient: Patient }> = ({ patien
                         {o.status === 'Draft' && (
                           <button
                             type="button"
+                            disabled={!canAuthorizeOrder}
+                            title={
+                              canAuthorizeOrder
+                                ? 'Approve and release order'
+                                : `Role "${state.currentRole}" cannot authorize clinical orders`
+                            }
                             onClick={() => updateOrderStatus(o.id, 'Ordered')}
-                            className="px-2 py-1 text-[11px] font-medium bg-[#185FA5] text-white rounded"
+                            className="px-2 py-1 text-[11px] font-medium bg-[#185FA5] text-white rounded disabled:opacity-45"
                           >
                             Approve & Order
                           </button>
                         )}
-                        {o.status === 'Ordered' && o.category === 'Lab' && (
+                        {o.status === 'Ordered' && o.category === 'Lab' && canProcessLab && (
                           <button
                             type="button"
                             data-demo-target="lab-collect-btn"
@@ -341,7 +355,7 @@ export const PatientOrdersResultsTab: React.FC<{ patient: Patient }> = ({ patien
                             Collect Specimen
                           </button>
                         )}
-                        {(o.status === 'Specimen Collected' || o.status === 'Ordered') && o.category === 'Lab' && (
+                        {(o.status === 'Specimen Collected' || o.status === 'Ordered') && o.category === 'Lab' && canProcessLab && (
                           <span className="inline-flex items-center gap-1">
                             <input
                               id={`lab-val-${o.id}`}
@@ -356,10 +370,40 @@ export const PatientOrdersResultsTab: React.FC<{ patient: Patient }> = ({ patien
                               type="button"
                               data-demo-target="lab-post-result-btn"
                               onClick={() => {
-                                const valStr = customLabValue.trim() || (o.name.toLowerCase().includes('potassium') ? '4.6' : '6.8');
+                                const lower = o.name.toLowerCase();
+                                const isCreatinine = lower.includes('creatinine');
+                                const isEgfr = lower.includes('egfr');
+                                const isK = lower.includes('potassium') || lower.includes('bmp') || lower.includes('renal') || lower.includes('metabolic');
+                                const defaultVal = isCreatinine ? '1.18' : isEgfr ? '68' : isK ? '4.4' : '6.8';
+                                const valStr = customLabValue.trim() || defaultVal;
                                 const num = Number(valStr);
-                                const isK = o.name.toLowerCase().includes('potassium') || o.name.toLowerCase().includes('renal');
-                                const flag = isK
+                                const unit = isCreatinine
+                                  ? 'mg/dL'
+                                  : isEgfr
+                                  ? 'mL/min/1.73m²'
+                                  : isK
+                                  ? 'mmol/L'
+                                  : '%';
+                                const refRange = isCreatinine
+                                  ? '0.7–1.3'
+                                  : isEgfr
+                                  ? '> 60'
+                                  : isK
+                                  ? '3.5–5.1'
+                                  : '< 7.0';
+                                const flag: 'Normal' | 'Abnormal' | 'Critical' = isCreatinine
+                                  ? num >= 3.0
+                                    ? 'Critical'
+                                    : num > 1.3
+                                    ? 'Abnormal'
+                                    : 'Normal'
+                                  : isEgfr
+                                  ? num < 30
+                                    ? 'Critical'
+                                    : num < 60
+                                    ? 'Abnormal'
+                                    : 'Normal'
+                                  : isK
                                   ? num >= 6.0 || num <= 2.9
                                     ? 'Critical'
                                     : num > 5.1 || num < 3.5
@@ -372,8 +416,8 @@ export const PatientOrdersResultsTab: React.FC<{ patient: Patient }> = ({ patien
                                   o.id,
                                   valStr,
                                   Number.isFinite(num) ? num : undefined,
-                                  isK ? 'mmol/L' : '%',
-                                  isK ? '3.5–5.1' : '< 7.0',
+                                  unit,
+                                  refRange,
                                   flag
                                 );
                               }}

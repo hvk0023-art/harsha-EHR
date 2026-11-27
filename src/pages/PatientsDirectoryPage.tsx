@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowUpRight, Search, ShieldCheck, Star, UserPlus } from 'lucide-react';
+import { ArrowUpRight, CalendarPlus, ClipboardCheck, Search, ShieldCheck, Star, UserPlus } from 'lucide-react';
 import { findDuplicatePatients } from '../state/domainLogic';
 import { canSwitchFacility, filterPatientsForRole } from '../state/permissions';
 import { useAppState } from '../state/AppStateContext';
-import { RegisterPatientModal } from '../components/modals/QuickActionModals';
+import { BookAppointmentModal, RegisterPatientModal } from '../components/modals/QuickActionModals';
 import { IntelligentRegistrationModal } from '../components/registration/IntelligentRegistrationModal';
 import {
   EmptyState,
@@ -23,6 +23,7 @@ export const PatientsDirectoryPage: React.FC = () => {
     state,
     currentFacility,
     openPatient,
+    setNav,
     togglePatientFavourite,
     mergeDuplicatePatient,
   } = useAppState();
@@ -31,8 +32,16 @@ export const PatientsDirectoryPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
   const [scopeAllFacilities, setScopeAllFacilities] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  const [registerEntryPath, setRegisterEntryPath] = useState<'Scheduled' | 'Walk-in'>('Scheduled');
+  const [recentWalkInId, setRecentWalkInId] = useState<string | null>(null);
+  const [bookWalkInPatientId, setBookWalkInPatientId] = useState<string | null>(null);
   const [showIntelligentReg, setShowIntelligentReg] = useState(false);
   const [showDupReview, setShowDupReview] = useState(false);
+
+  const recentWalkInPatient = useMemo(
+    () => (recentWalkInId ? state.patients.find((p) => p.id === recentWalkInId) || null : null),
+    [recentWalkInId, state.patients]
+  );
 
   const allowAllFacilities = canSwitchFacility(state.currentRole);
   const effectiveAllFacilities = allowAllFacilities && scopeAllFacilities;
@@ -86,7 +95,22 @@ export const PatientsDirectoryPage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setShowRegister(true)}
+              data-demo-target="walkin-register-btn"
+              onClick={() => {
+                setRegisterEntryPath('Walk-in');
+                setShowRegister(true);
+              }}
+              className="eigen-btn-primary px-3.5 py-2 text-xs"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Walk-In Registration
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRegisterEntryPath('Scheduled');
+                setShowRegister(true);
+              }}
               className="eigen-btn-secondary px-3 py-2 text-xs"
             >
               <UserPlus className="w-3.5 h-3.5 text-[#185FA5]" />
@@ -106,6 +130,49 @@ export const PatientsDirectoryPage: React.FC = () => {
           </button>
         }
       />
+
+      {recentWalkInPatient && (
+        <section
+          data-demo-target="walkin-registered-banner"
+          className="eigen-card px-4 py-3.5 bg-[#E9F7F1]/75 border-[#1D9E75]/35 flex flex-wrap items-center justify-between gap-3"
+        >
+          <div className="text-xs">
+            <div className="font-semibold text-[#042C53]">
+              Walk-In Registered: {recentWalkInPatient.fullName}{' '}
+              <span className="font-mono text-[#0F6E50] ml-1">{recentWalkInPatient.mrn}</span>
+            </div>
+            <div className="text-[11px] text-[#5F5D56] mt-0.5">
+              DOB {recentWalkInPatient.dob} · {recentWalkInPatient.chiefConcern || 'Same-day walk-in evaluation'} · Ready for slot assignment and Front Desk check-in.
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              data-demo-target="schedule-walkin-slot-btn"
+              onClick={() => setBookWalkInPatientId(recentWalkInPatient.id)}
+              className="eigen-btn-primary px-3 py-1.5 text-xs"
+            >
+              <CalendarPlus className="w-3.5 h-3.5" />
+              Book Walk-In Slot
+            </button>
+            <button
+              type="button"
+              onClick={() => setNav('front-desk')}
+              className="eigen-btn-secondary px-3 py-1.5 text-xs"
+            >
+              <ClipboardCheck className="w-3.5 h-3.5 text-[#185FA5]" />
+              Front Desk Check-In
+            </button>
+            <button
+              type="button"
+              onClick={() => openPatient(recentWalkInPatient.id, 'overview')}
+              className="eigen-btn-secondary px-3 py-1.5 text-xs"
+            >
+              Open Summary
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Search & Filters */}
       <div className="eigen-card p-3.5 flex flex-wrap items-center justify-between gap-3">
@@ -240,7 +307,7 @@ export const PatientsDirectoryPage: React.FC = () => {
                           onClick={() => openPatient(p.id, 'overview')}
                           className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#042C53] bg-[#E6F1FB] hover:bg-[#185FA5] hover:text-white rounded-lg transition-colors"
                         >
-                          Open Chart
+                          Open Summary
                           <ArrowUpRight className="w-3.5 h-3.5" />
                         </button>
                       </td>
@@ -253,7 +320,21 @@ export const PatientsDirectoryPage: React.FC = () => {
         )}
       </div>
 
-      <RegisterPatientModal open={showRegister} onClose={() => setShowRegister(false)} />
+      <RegisterPatientModal
+        open={showRegister}
+        onClose={() => setShowRegister(false)}
+        defaultEntryPath={registerEntryPath}
+        onRegistered={(createdId) => {
+          if (registerEntryPath === 'Walk-in') {
+            setRecentWalkInId(createdId);
+          }
+        }}
+      />
+      <BookAppointmentModal
+        open={Boolean(bookWalkInPatientId)}
+        onClose={() => setBookWalkInPatientId(null)}
+        defaultPatientId={bookWalkInPatientId || undefined}
+      />
       <IntelligentRegistrationModal
         open={showIntelligentReg}
         onClose={() => setShowIntelligentReg(false)}

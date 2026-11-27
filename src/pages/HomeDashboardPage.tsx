@@ -1,16 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   ArrowUpRight,
   Calendar,
   CalendarPlus,
   CheckSquare,
-  Clapperboard,
   ClipboardCheck,
   CreditCard,
   FileSignature,
   Play,
   Search,
+  ShieldCheck,
   Sparkles,
   Star,
   UserPlus,
@@ -19,13 +19,13 @@ import {
 import { TODAY_DATE } from '../data/seedData';
 import { computeTaskSummary, formatCurrency } from '../state/domainLogic';
 import {
+  canSignClinicalNote,
   canViewTeamWork,
   filterAppointmentsForRole,
   filterTasksForRole,
   getRoleScopeDescription,
 } from '../state/permissions';
 import { useAppState } from '../state/AppStateContext';
-import { useDemoDirector } from '../demo/DemoDirectorContext';
 import {
   BookAppointmentModal,
   CreateTaskModal,
@@ -51,15 +51,27 @@ export const HomeDashboardPage: React.FC = () => {
     updateTaskStatus,
     togglePatientFavourite,
   } = useAppState();
-  const { startScenario, isDemoMode } = useDemoDirector();
 
   const teamWorkAllowed = canViewTeamWork(state.currentRole);
-  const [scopeTab, setScopeTab] = useState<'my' | 'team'>('my');
+  const [scopeTab, setScopeTab] = useState<'my' | 'team'>(
+    state.currentRole === 'Supervisor' ? 'team' : 'my'
+  );
+  useEffect(() => {
+    if (state.currentRole === 'Supervisor') {
+      setScopeTab('team');
+    } else if (!teamWorkAllowed) {
+      setScopeTab('my');
+    }
+  }, [state.currentRole, teamWorkAllowed]);
   const effectiveScope: 'my' | 'team' = teamWorkAllowed ? scopeTab : 'my';
   const [showRegister, setShowRegister] = useState(false);
+  const [registerDefaultPath, setRegisterDefaultPath] = useState<'Scheduled' | 'Walk-in'>('Scheduled');
   const [showBook, setShowBook] = useState(false);
   const [showTask, setShowTask] = useState(false);
   const [showAskEigenH, setShowAskEigenH] = useState(false);
+  const isFrontDesk = state.currentRole === 'Front Desk';
+  const isSupervisor = state.currentRole === 'Supervisor';
+  const canStartClinicalVisit = canSignClinicalNote(state.currentRole);
   const canUseAskEigenH =
     state.currentRole === 'Clinician' ||
     state.currentRole === 'Nurse Practitioner' ||
@@ -131,19 +143,43 @@ export const HomeDashboardPage: React.FC = () => {
   );
 
   const handleStartQuickEncounter = () => {
-    const nextAppt = facilityAppts[0];
+    const nextAppt =
+      facilityAppts.find((a) => a.status === 'In Room' || a.status === 'Checked In') ||
+      facilityAppts[0];
     if (nextAppt) {
-      openPatient(nextAppt.patientId, 'encounters');
+      openPatient(nextAppt.patientId, 'overview');
     } else {
       const pat = state.patients.find((p) => p.facilityId === state.currentFacilityId) || state.patients[0];
-      if (pat) openPatient(pat.id, 'encounters');
+      if (pat) openPatient(pat.id, 'overview');
     }
   };
+
+  const facilityAuditEvents = useMemo(
+    () =>
+      state.auditEvents
+        .filter((ev) => ev.facilityId === state.currentFacilityId)
+        .slice(0, 8),
+    [state.auditEvents, state.currentFacilityId]
+  );
+
+  const pendingHandoffs = useMemo(
+    () =>
+      facilityAppts.filter(
+        (a) => a.status === 'Checked In' || a.status === 'Pre-Registered' || a.status === 'Scheduled'
+      ),
+    [facilityAppts]
+  );
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${effectiveScope === 'my' ? 'My Workspace' : 'Team Dashboard'} — ${state.currentRole}`}
+        title={
+          isSupervisor
+            ? `Facility & Team Oversight — ${state.currentRole}`
+            : isFrontDesk
+              ? 'Front Desk Operations'
+              : `${effectiveScope === 'my' ? 'Today’s Patients & Workspace' : 'Team Dashboard'} — ${state.currentRole}`
+        }
         subtitle={`${currentFacility.name} · ${TODAY_DATE} (${currentFacility.tzAbbr}) · ${getRoleScopeDescription(state.currentRole)}`}
         secondaryActions={
           teamWorkAllowed ? (
@@ -163,38 +199,119 @@ export const HomeDashboardPage: React.FC = () => {
         }
         primaryAction={
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowRegister(true)}
-              className="eigen-btn-secondary px-3 py-2 text-xs"
-            >
-              <UserPlus className="w-3.5 h-3.5 text-[#185FA5]" />
-              Register Patient
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowBook(true)}
-              className="eigen-btn-secondary px-3 py-2 text-xs"
-            >
-              <CalendarPlus className="w-3.5 h-3.5 text-[#185FA5]" />
-              Book Appointment
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowTask(true)}
-              className="eigen-btn-secondary px-3 py-2 text-xs"
-            >
-              <CheckSquare className="w-3.5 h-3.5 text-[#185FA5]" />
-              Create Task
-            </button>
-            <button
-              type="button"
-              onClick={handleStartQuickEncounter}
-              className="eigen-btn-primary px-4 py-2 text-xs"
-            >
-              <Play className="w-3.5 h-3.5" />
-              Start Encounter
-            </button>
+            {isFrontDesk ? (
+              <>
+                <button
+                  type="button"
+                  data-demo-target="home-walkin-btn"
+                  onClick={() => {
+                    setRegisterDefaultPath('Walk-in');
+                    setShowRegister(true);
+                  }}
+                  className="eigen-btn-primary px-3.5 py-2 text-xs"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Walk-In Registration
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNav('front-desk')}
+                  className="eigen-btn-navy px-3.5 py-2 text-xs"
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5 text-[#85B7EB]" />
+                  Check-In Queue
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBook(true)}
+                  className="eigen-btn-secondary px-3 py-2 text-xs"
+                >
+                  <CalendarPlus className="w-3.5 h-3.5 text-[#185FA5]" />
+                  Book Appointment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNav('patients')}
+                  className="eigen-btn-secondary px-3 py-2 text-xs"
+                >
+                  <Users className="w-3.5 h-3.5 text-[#185FA5]" />
+                  Patient Directory
+                </button>
+              </>
+            ) : isSupervisor ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setNav('tasks')}
+                  className="eigen-btn-primary px-3.5 py-2 text-xs"
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  Team Work Queues
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNav('front-desk')}
+                  className="eigen-btn-secondary px-3 py-2 text-xs"
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5 text-[#185FA5]" />
+                  Intake & Handoffs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNav('reports')}
+                  className="eigen-btn-secondary px-3 py-2 text-xs"
+                >
+                  Facility Reports
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTask(true)}
+                  className="eigen-btn-secondary px-3 py-2 text-xs"
+                >
+                  Assign Task
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegisterDefaultPath('Scheduled');
+                    setShowRegister(true);
+                  }}
+                  className="eigen-btn-secondary px-3 py-2 text-xs"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-[#185FA5]" />
+                  Register Patient
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBook(true)}
+                  className="eigen-btn-secondary px-3 py-2 text-xs"
+                >
+                  <CalendarPlus className="w-3.5 h-3.5 text-[#185FA5]" />
+                  Book Appointment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTask(true)}
+                  className="eigen-btn-secondary px-3 py-2 text-xs"
+                >
+                  <CheckSquare className="w-3.5 h-3.5 text-[#185FA5]" />
+                  Create Task
+                </button>
+                {canStartClinicalVisit && (
+                  <button
+                    type="button"
+                    onClick={handleStartQuickEncounter}
+                    className="eigen-btn-primary px-4 py-2 text-xs"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Next Patient Summary
+                  </button>
+                )}
+              </>
+            )}
             {canUseAskEigenH && (
               <button
                 type="button"
@@ -220,40 +337,23 @@ export const HomeDashboardPage: React.FC = () => {
         <AskEigenHPanel compact onClose={() => setShowAskEigenH(false)} />
       )}
 
-      {!isDemoMode && (
+      {isSupervisor && (
         <section
-          data-demo-target="home-academy-banner"
-          className="rounded-2xl bg-[#EFF6FC] border border-[#85B7EB]/45 px-5 py-4 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 shadow-[0_1px_2px_rgba(4,44,83,0.03)]"
+          data-demo-target="supervisor-governance-bar"
+          className="eigen-card px-5 py-3.5 bg-[#F4F9FD] border-[#85B7EB]/45 flex flex-wrap items-center justify-between gap-3 text-xs"
         >
-          <div className="flex items-start gap-3.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-white border border-[#85B7EB]/50 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <Clapperboard className="w-4 h-4 text-[#185FA5]" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-display text-sm font-semibold text-[#042C53]">
-                EigenH Guided Demo Academy
-              </h2>
-              <p className="text-xs text-[#444441] mt-0.5 leading-relaxed max-w-2xl">
-                Learn every clinical workflow by watching the EHR demonstrate itself — live cursor guidance, visible data entry, AI-prepared review gates, and hands-on practice.
-              </p>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <ShieldCheck className="w-4 h-4 text-[#185FA5] shrink-0" />
+            <div className="text-[#042C53]">
+              <span className="font-semibold">Supervisor Oversight Scope:</span>{' '}
+              <span className="text-[#444441]">
+                Read-only encounter &amp; patient status, facility queues, pending handoffs, and audit review. Clinical note signing, clinical ordering/prescribing, Administration, and HL7 FHIR R4 export are restricted.
+              </span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => startScenario('demo-01-scheduled-journey', { autoPlay: true, learningMode: 'watch' })}
-              className="eigen-btn-navy px-4 py-2 text-xs"
-            >
-              <Play className="w-3.5 h-3.5" />
-              Watch Complete Patient Journey
-            </button>
-            <button
-              type="button"
-              onClick={() => setNav('demo-scenarios')}
-              className="eigen-btn-secondary px-3.5 py-2 text-xs"
-            >
-              Explore Workflows by Role (8)
-            </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <StatusBadge label="Sign/Order Restricted" tone="warning" />
+            <StatusBadge label="FHIR Export: Admin Only" tone="neutral" />
           </div>
         </section>
       )}
@@ -443,7 +543,8 @@ export const HomeDashboardPage: React.FC = () => {
                         <StatusBadge label={a.status} />
                       </td>
                       <td className="py-3 pl-2 pr-4 text-right whitespace-nowrap align-top">
-                        {state.currentRole === 'Front Desk' && a.status === 'Pre-Registered' ? (
+                        {state.currentRole === 'Front Desk' &&
+                        (a.status === 'Pre-Registered' || a.status === 'Scheduled' || a.status === 'Confirmed') ? (
                           <button
                             type="button"
                             onClick={() => updateAppointmentStatus(a.id, 'Checked In')}
@@ -455,10 +556,10 @@ export const HomeDashboardPage: React.FC = () => {
                           <button
                             type="button"
                             data-demo-target={a.patientId === 'pat-demo-elena' ? 'home-open-elena-btn' : undefined}
-                            onClick={() => openPatient(a.patientId, 'pre-consultation')}
+                            onClick={() => openPatient(a.patientId, 'overview')}
                             className="px-2.5 py-1 text-[11px] font-medium text-[#185FA5] hover:bg-[#E6F1FB] rounded-lg transition-colors"
                           >
-                            Open Chart
+                            {isSupervisor ? 'View Status' : 'Open Summary'}
                           </button>
                         )}
                       </td>
@@ -698,7 +799,84 @@ export const HomeDashboardPage: React.FC = () => {
         </section>
       </div>
 
-      <RegisterPatientModal open={showRegister} onClose={() => setShowRegister(false)} />
+      {isSupervisor && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Supervisor Pending Handoffs & Operational Exceptions */}
+          <section
+            data-demo-target="supervisor-handoffs-panel"
+            className="eigen-card p-5 space-y-3.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="font-display text-sm font-semibold text-[#042C53]">
+                  Pending Handoffs &amp; Operational Exceptions
+                </h2>
+                <p className="text-[11px] text-[#5F5D56] mt-0.5">
+                  Arrivals awaiting rooming, open team exceptions, and read-only encounter status
+                </p>
+              </div>
+              <StatusBadge label={`${pendingHandoffs.length} Handoffs`} tone={pendingHandoffs.length > 0 ? 'warning' : 'success'} />
+            </div>
+            {pendingHandoffs.length === 0 ? (
+              <p className="text-xs text-[#5F5D56] py-2">No arrivals currently waiting for intake handoff.</p>
+            ) : (
+              <div className="divide-y divide-[#042C53]/[0.06]">
+                {pendingHandoffs.map((a) => (
+                  <div key={a.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-2 text-xs">
+                    <div className="min-w-0">
+                      <PatientLink patientId={a.patientId} tab="overview" showMrn />
+                      <div className="text-[11px] text-[#5F5D56] truncate mt-0.5">
+                        {a.startTime} · {a.type} ({a.subtype}) · {a.reason}
+                      </div>
+                    </div>
+                    <StatusBadge label={a.status} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Supervisor Audit Trail Visibility */}
+          <section
+            data-demo-target="supervisor-audit-panel"
+            className="eigen-card p-5 space-y-3.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="font-display text-sm font-semibold text-[#042C53]">
+                  Recent Facility Audit Activity
+                </h2>
+                <p className="text-[11px] text-[#5F5D56] mt-0.5">
+                  Read-only operational &amp; authorization trail for {currentFacility.shortName}
+                </p>
+              </div>
+              <StatusBadge label={`${facilityAuditEvents.length} Recent`} tone="blue" />
+            </div>
+            <div className="divide-y divide-[#042C53]/[0.06] max-h-60 overflow-y-auto eigen-scroll">
+              {facilityAuditEvents.map((ev) => (
+                <div key={ev.id} className="py-2 first:pt-0 last:pb-0 flex items-start justify-between gap-3 text-xs">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[#042C53] flex items-center gap-1.5 flex-wrap">
+                      <span>{ev.action}</span>
+                      <span className="text-[10.5px] font-normal text-[#5F5D56]">· {ev.actor} ({ev.role})</span>
+                    </div>
+                    <div className="text-[11px] text-[#5F5D56] truncate mt-0.5">{ev.detail}</div>
+                  </div>
+                  <span className="font-mono text-[10px] text-[#5F5D56] whitespace-nowrap shrink-0">
+                    {ev.timestamp}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+
+      <RegisterPatientModal
+        open={showRegister}
+        onClose={() => setShowRegister(false)}
+        defaultEntryPath={registerDefaultPath}
+      />
       <BookAppointmentModal open={showBook} onClose={() => setShowBook(false)} />
       <CreateTaskModal open={showTask} onClose={() => setShowTask(false)} />
     </div>

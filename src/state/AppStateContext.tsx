@@ -712,6 +712,16 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const signEncounter = useCallback(
     (encounterId: string, coSign = false) => {
       if (!canSignClinicalNote(state.currentRole)) {
+        setState((prev) => ({
+          ...prev,
+          auditEvents: appendAudit(
+            prev,
+            'Unauthorized Sign Blocked',
+            'Encounter',
+            encounterId,
+            `Blocked clinical note sign-off attempt by role "${prev.currentRole}"`
+          ),
+        }));
         notify('error', `Role "${state.currentRole}" is not authorized to sign clinical notes.`);
         return;
       }
@@ -796,8 +806,14 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const createOrder = useCallback(
     (order: Omit<ClinicalOrder, 'id' | 'requisitionId'>) => {
+      const effectiveStatus =
+        order.status === 'Ordered' && !canOrderOrPrescribe(state.currentRole) ? 'Draft' : order.status;
+      if (order.status === 'Ordered' && !canOrderOrPrescribe(state.currentRole)) {
+        notify('error', `Role "${state.currentRole}" cannot authorize clinical orders directly; saved as Draft only.`);
+      }
       const created: ClinicalOrder = {
         ...order,
+        status: effectiveStatus,
         id: `ord-${Date.now()}`,
         requisitionId: `REQ-${Math.floor(88300 + Math.random() * 900)}`,
       };
@@ -806,14 +822,30 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         orders: [created, ...prev.orders],
         auditEvents: appendAudit(prev, 'Create Order', 'Order', created.id, `${created.category}: ${created.name} (${created.status})`),
       }));
-      notify('success', `Order ${created.requisitionId} saved (${created.status})`);
+      if (effectiveStatus === order.status) {
+        notify('success', `Order ${created.requisitionId} saved (${created.status})`);
+      }
       return created;
     },
-    [appendAudit, notify]
+    [appendAudit, notify, state.currentRole]
   );
 
   const updateOrderStatus = useCallback(
     (orderId: string, status: ClinicalOrder['status']) => {
+      if (status === 'Ordered' && !canOrderOrPrescribe(state.currentRole)) {
+        setState((prev) => ({
+          ...prev,
+          auditEvents: appendAudit(
+            prev,
+            'Unauthorized Order Blocked',
+            'Order',
+            orderId,
+            `Blocked clinical order authorization attempt by role "${prev.currentRole}"`
+          ),
+        }));
+        notify('error', `Role "${state.currentRole}" is not authorized to approve clinical orders.`);
+        return;
+      }
       setState((prev) => ({
         ...prev,
         orders: prev.orders.map((o) => (o.id === orderId ? { ...o, status } : o)),
@@ -821,7 +853,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }));
       notify('info', `Order status updated to ${status}`);
     },
-    [appendAudit, notify]
+    [appendAudit, notify, state.currentRole]
   );
 
   const simulateLabResult = useCallback(

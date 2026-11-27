@@ -105,7 +105,6 @@ export function canSignClinicalNote(role: StaffRole): boolean {
   return (
     role === 'Clinician' ||
     role === 'Nurse Practitioner' ||
-    role === 'Supervisor' ||
     role === 'Administrator'
   );
 }
@@ -114,7 +113,6 @@ export function canOrderOrPrescribe(role: StaffRole): boolean {
   return (
     role === 'Clinician' ||
     role === 'Nurse Practitioner' ||
-    role === 'Supervisor' ||
     role === 'Administrator'
   );
 }
@@ -164,8 +162,8 @@ export function getRoleCapabilities(role: StaffRole): RoleCapabilitySummary {
     case 'Front Desk':
       return {
         role,
-        allowedActions: ['Schedule & check in visits', 'Verify demographics & intake status', 'Hand off to Medical Assistant'],
-        restrictedActions: ['Cannot sign clinical notes', 'Cannot approve prescriptions or lab orders', 'Cannot export FHIR R4 bundles'],
+        allowedActions: ['Patient search & walk-in / scheduled registration', 'Appointments, arrivals & check-in intake', 'Referrals & assigned Front Desk tasks'],
+        restrictedActions: ['Cannot start clinical encounters or sign clinical notes', 'Cannot approve prescriptions or lab orders', 'Cannot export FHIR R4 bundles'],
       };
     case 'Medical Assistant':
       return {
@@ -182,7 +180,7 @@ export function getRoleCapabilities(role: StaffRole): RoleCapabilitySummary {
     case 'Clinician':
       return {
         role,
-        allowedActions: ['Pre/Post-Consultation AI summaries', 'Sign clinical notes & approve orders/medications', 'Review & acknowledge lab results'],
+        allowedActions: ['Patient Summary & longitudinal clinical trends', 'Consultation SOAP review, signing & order/medication approval', 'Review & acknowledge lab results'],
         restrictedActions: ['Cannot access Administration console', 'Cannot view unauthorized team-wide queues', 'Cannot export FHIR R4 bundles'],
       };
     case 'Laboratory Staff':
@@ -200,8 +198,8 @@ export function getRoleCapabilities(role: StaffRole): RoleCapabilitySummary {
     case 'Supervisor':
       return {
         role,
-        allowedActions: ['Authorized team work queue oversight', 'Multi-facility clinical supervision', 'Sign/co-sign notes & review alerts'],
-        restrictedActions: ['Cannot access Administration configuration', 'Cannot export HL7 FHIR R4 patient bundles'],
+        allowedActions: ['Facility & team work queue oversight', 'Pending handoffs & operational exception review', 'Permitted patient/encounter status & audit visibility'],
+        restrictedActions: ['Cannot sign clinician encounter notes', 'Cannot authorize prescriptions or clinical orders', 'Cannot access Administration configuration or export HL7 FHIR R4 bundles'],
       };
     case 'Administrator':
       return {
@@ -221,7 +219,7 @@ export function getRoleCapabilities(role: StaffRole): RoleCapabilitySummary {
 export function getRoleScopeDescription(role: StaffRole): string {
   switch (role) {
     case 'Clinician':
-      return 'Assigned patients, personal schedule, clinical summaries, documentation & order approval (assigned facility)';
+      return 'Today’s patients, concise Patient Summary, consultation SOAP sign-off & lab review (assigned facility)';
     case 'Nurse Practitioner':
       return 'Clinical preparation, intake verification, pre-consultation readiness & provider handoff (assigned facility)';
     case 'Medical Assistant':
@@ -229,9 +227,9 @@ export function getRoleScopeDescription(role: StaffRole): string {
     case 'Nurse / Care Coordinator':
       return 'Post-visit handoffs, care coordination tasks, follow-up scheduling & patient outreach (assigned facility)';
     case 'Front Desk':
-      return 'Appointment scheduling, walk-in registration, arrival verification & check-in (assigned facility)';
+      return 'Patient search, walk-in & scheduled registration, appointments, check-in & Front Desk tasks (assigned facility)';
     case 'Supervisor':
-      return 'Authorized team work queues, multi-facility oversight & clinical supervision (no Admin/FHIR export)';
+      return 'Facility overview, team work queues, pending handoffs, operational exceptions & audit visibility (no clinical signing or Admin/FHIR export)';
     case 'Administrator':
       return 'Full administrative configuration, audit oversight & Administrator-only HL7 FHIR R4 export';
     case 'Billing User':

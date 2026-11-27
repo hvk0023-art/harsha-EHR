@@ -59,8 +59,14 @@ describe('RBAC Governance & Role Capability Matrix', () => {
 
     assert.equal(canSignClinicalNote('Medical Assistant'), false);
     assert.equal(canOrderOrPrescribe('Medical Assistant'), false);
+    assert.equal(canSignClinicalNote('Front Desk'), false);
+    assert.equal(canOrderOrPrescribe('Front Desk'), false);
+    assert.equal(canSignClinicalNote('Supervisor'), false);
+    assert.equal(canOrderOrPrescribe('Supervisor'), false);
+    assert.equal(canExportPatientFhir('Supervisor'), false);
     assert.equal(canRecordIntakeVitals('Medical Assistant'), true);
     assert.equal(canSignClinicalNote('Nurse Practitioner'), true);
+    assert.equal(canSignClinicalNote('Clinician'), true);
     assert.equal(canOrderOrPrescribe('Clinician'), true);
   });
 });

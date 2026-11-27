@@ -18,8 +18,10 @@ import {
   X,
 } from 'lucide-react';
 import { TODAY_DATE } from '../../data/seedData';
+import { useDemoDirector } from '../../demo/DemoDirectorContext';
 import { buildPatientTimeline, filterTimelineEvents } from '../../state/clinicalEvents';
 import { buildExplainableRecommendations } from '../../state/knowledgeGraph';
+import { canSignClinicalNote } from '../../state/permissions';
 import { useAppState } from '../../state/AppStateContext';
 import type { Encounter, Patient } from '../../types/hms';
 import { SimpleLineChart } from '../ui/Charts';
@@ -44,8 +46,11 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
     decideClinicalRecommendation,
     notify,
   } = useAppState();
+  const { isDemoMode } = useDemoDirector();
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
+  const canDocument = canSignClinicalNote(state.currentRole);
   const patientMeds = state.medications.filter(
     (m) => m.patientId === patient.id && m.status !== 'Discontinued'
   );
@@ -70,6 +75,11 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
     [patient.id, state]
   );
 
+  const recentTimeline = useMemo(
+    () => buildPatientTimeline(state, patient.id).slice(0, 5),
+    [patient.id, state]
+  );
+
   // Real clinical trend series strictly from recorded synthetic vitals (never fabricated)
   const bpTrendPoints = useMemo(() => {
     if (patientVitals.length < 2) return [];
@@ -80,6 +90,51 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
         value: v.bpSystolic,
       }));
   }, [patientVitals]);
+
+  // Real longitudinal lab series grouped by test name (strictly from recorded numeric observations)
+  const labTrendSeries = useMemo(() => {
+    const grouped = new Map<
+      string,
+      {
+        testName: string;
+        unit: string;
+        refRange: string;
+        latestFlag: string;
+        latestStatus: string;
+        latestSource: string;
+        points: { label: string; value: number; fullDate: string }[];
+      }
+    >();
+    const chronological = [...patientLabs].sort((a, b) =>
+      a.collectionDate.localeCompare(b.collectionDate)
+    );
+    for (const lab of chronological) {
+      if (typeof lab.numericValue !== 'number') continue;
+      const existing = grouped.get(lab.testName);
+      const pt = {
+        label: lab.collectionDate.slice(5, 10),
+        value: lab.numericValue,
+        fullDate: lab.collectionDate,
+      };
+      if (existing) {
+        existing.points.push(pt);
+        existing.latestFlag = lab.flag;
+        existing.latestStatus = lab.status;
+        existing.latestSource = lab.sourceLabel || 'Facility Lab';
+      } else {
+        grouped.set(lab.testName, {
+          testName: lab.testName,
+          unit: lab.unit,
+          refRange: lab.referenceInterval,
+          latestFlag: lab.flag,
+          latestStatus: lab.status,
+          latestSource: lab.sourceLabel || 'Facility Lab',
+          points: [pt],
+        });
+      }
+    }
+    return Array.from(grouped.values()).filter((s) => s.points.length >= 2);
+  }, [patientLabs]);
 
   const missingInfoItems = useMemo(() => {
     const missing: string[] = [];
@@ -99,20 +154,26 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
   }, [latestVitals, patient.abhaId, patient.allergies.length, patient.caregivers.length]);
 
   const previewDoc = patientDocs.find((d) => d.id === previewDocId) || null;
+  const activeVisit = patientAppts[0];
+  const suggestionsExpanded = isDemoMode || showSuggestions;
 
   return (
     <div data-demo-target="patient-360-profile" className="space-y-5 text-xs">
-      {/* Patient 360 Intelligence Orientation Card */}
+      {/* Concise Patient Summary Orientation Card */}
       <section className="eigen-card p-5 space-y-3.5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1.5 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-display text-base font-semibold text-[#042C53]">
-                Patient 360° Intelligence Profile
+                Patient Summary
               </h2>
               <StatusBadge
                 label={patient.registrationStatus || 'Verified & Ready'}
                 tone="success"
+              />
+              <StatusBadge
+                label={patient.entryPath === 'Walk-in' ? 'Walk-In Entry' : 'Scheduled Entry'}
+                tone={patient.entryPath === 'Walk-in' ? 'blue' : 'neutral'}
               />
               {patient.registrationVerifiedBy && (
                 <span className="inline-flex items-center gap-1 text-[11px] text-[#0F6E50] font-medium">
@@ -122,29 +183,37 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
                 </span>
               )}
             </div>
-            <p className="text-xs text-[#5F5D56] leading-relaxed">
-              {patient.chiefConcern
-                ? `Scheduled Visit Context: ${patient.chiefConcern}`
-                : 'Longitudinal patient profile clearly separating verified records, patient-reported items, external items awaiting verification, AI-extracted drafts, and missing information.'}
+            <p className="text-xs text-[#444441] leading-relaxed">
+              <strong className="text-[#042C53]">Reason for Visit:</strong>{' '}
+              {patient.chiefConcern || activeVisit?.reason || 'General outpatient follow-up evaluation'}
+              {activeVisit && (
+                <span className="text-[#5F5D56] ml-2 font-mono text-[11px]">
+                  · {activeVisit.date} {activeVisit.startTime} ({activeVisit.status}
+                  {activeVisit.room ? ` · ${activeVisit.room}` : ''})
+                </span>
+              )}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {canDocument && (
+              <button
+                type="button"
+                data-demo-target="summary-start-consultation-btn"
+                onClick={() => setPatientTab('post-consultation')}
+                className="eigen-btn-navy px-4 py-2 text-xs"
+              >
+                <Mic className="w-3.5 h-3.5 text-[#85B7EB]" />
+                Open Consultation &amp; Sign
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setPatientTab('data-inbox')}
               className="eigen-btn-secondary px-3.5 py-2 text-xs"
             >
               <Inbox className="w-3.5 h-3.5 text-[#185FA5]" />
-              Patient Data Inbox{pendingInboxCount > 0 ? ` (${pendingInboxCount} Pending)` : ''}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPatientTab('knowledge-graph')}
-              className="eigen-btn-navy px-3.5 py-2 text-xs"
-            >
-              <Network className="w-3.5 h-3.5 text-[#85B7EB]" />
-              Patient Knowledge Graph
+              Data Inbox{pendingInboxCount > 0 ? ` (${pendingInboxCount} Pending)` : ''}
             </button>
           </div>
         </div>
@@ -152,7 +221,7 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
         {/* Clean Provenance Legend */}
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#042C53]/[0.07] text-[10px]">
           <span className="font-semibold text-[#5F5D56] uppercase tracking-wider mr-1">
-            Provenance States
+            Provenance
           </span>
           <StatusBadge label="Verified" tone="success" />
           <StatusBadge label="Patient-Reported" tone="blue" />
@@ -162,31 +231,40 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
         </div>
       </section>
 
-      {/* Explainable AI Recommendations Panel — EigenH Clinical Intelligence */}
+      {/* Explainable AI Recommendations Panel — Collapsible for concise chart-first review */}
       {recommendations.length > 0 && (
         <section
           data-demo-target="clinical-intelligence-panel"
-          className="eigen-card p-5 space-y-4 bg-gradient-to-b from-[#F4F9FD] to-white border-[#85B7EB]/45"
+          className="eigen-card px-5 py-4 space-y-3.5 bg-gradient-to-b from-[#F4F9FD] to-white border-[#85B7EB]/45"
         >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="w-7 h-7 rounded-lg bg-[#E6F1FB] text-[#185FA5] flex items-center justify-center shrink-0">
-                  <Sparkles className="w-4 h-4" />
-                </span>
-                <h2 className="font-display text-sm font-semibold text-[#042C53]">
-                  EigenH Clinical Intelligence · Explainable Workflow Suggestions ({recommendations.length})
-                </h2>
-                <StatusBadge label="Advisory Only — Human Review Required" tone="blue" />
-                <StatusBadge label="Deterministic Rule-Based Prototype (Simulated AI)" tone="neutral" />
-              </div>
-              <p className="text-[11px] text-[#5F5D56] leading-relaxed max-w-4xl">
-                Deterministic rule-based documentation-quality and coordination suggestions derived from current synthetic chart records (simulated AI prototype — not live clinical LLM inference; never autonomously diagnoses, prescribes, or signs notes).
-              </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span className="w-7 h-7 rounded-lg bg-[#E6F1FB] text-[#185FA5] flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </span>
+              <h2 className="font-display text-sm font-semibold text-[#042C53]">
+                Advisory Clinical Suggestions ({recommendations.length})
+              </h2>
+              <StatusBadge label="Advisory Only — Human Review Required" tone="blue" />
             </div>
+            {!isDemoMode && (
+              <button
+                type="button"
+                onClick={() => setShowSuggestions((v) => !v)}
+                className="eigen-btn-secondary px-3 py-1.5 text-[11px]"
+              >
+                {suggestionsExpanded ? 'Hide Details' : `Review ${recommendations.length} Advisory Notes`}
+              </button>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+          {suggestionsExpanded && (
+            <>
+              <p className="text-[11px] text-[#5F5D56] leading-relaxed max-w-4xl">
+                Deterministic rule-based documentation-quality and coordination suggestions derived from current synthetic chart records (never autonomously diagnoses, prescribes, or signs notes).
+              </p>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
             {recommendations.map((rec, idx) => (
               <article
                 key={rec.id}
@@ -303,6 +381,83 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
                 </div>
               </article>
             ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
+      {/* Longitudinal Laboratory & Vital Trends — Visual Chart-First Strip */}
+      {(labTrendSeries.length > 0 || bpTrendPoints.length >= 2) && (
+        <section
+          data-demo-target="summary-longitudinal-trends"
+          className="eigen-card p-5 space-y-3.5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-display text-sm font-semibold text-[#042C53]">
+                Longitudinal Measurements &amp; Laboratory Trends
+              </h2>
+              <p className="text-[11px] text-[#5F5D56] mt-0.5">
+                Plotted strictly from recorded synthetic observations with dates, units, reference intervals, and provenance (observational only — never auto-interpreted as diagnosis).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPatientTab('orders-results')}
+              className="text-xs font-medium text-[#185FA5] hover:underline"
+            >
+              All Orders &amp; Labs
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {labTrendSeries.slice(0, 2).map((series) => (
+              <div key={series.testName} className="p-3.5 eigen-card-subtle space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-semibold text-[#042C53]">{series.testName}</div>
+                    <div className="text-[10.5px] font-mono text-[#5F5D56]">
+                      Units: {series.unit} · Ref {series.refRange} · {series.latestSource}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <StatusBadge label={series.latestFlag} />
+                    <StatusBadge
+                      label={series.latestStatus === 'Reviewed' || series.latestStatus === 'Final' ? 'Verified' : series.latestStatus}
+                      tone={series.latestStatus === 'Reviewed' || series.latestStatus === 'Final' ? 'success' : 'warning'}
+                    />
+                  </div>
+                </div>
+                <SimpleLineChart
+                  points={series.points.map((p) => ({ label: p.label, value: p.value }))}
+                  unit={series.unit}
+                  color="#185FA5"
+                  height={118}
+                />
+                <div className="text-[10px] font-mono text-[#5F5D56]">
+                  Observations: {series.points.map((p) => `${p.fullDate}: ${p.value} ${series.unit}`).join(' · ')}
+                </div>
+              </div>
+            ))}
+            {bpTrendPoints.length >= 2 && (
+              <div className="p-3.5 eigen-card-subtle space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-semibold text-[#042C53]">Systolic Blood Pressure</div>
+                    <div className="text-[10.5px] font-mono text-[#5F5D56]">
+                      Units: mmHg · Ref &lt; 130 · Clinic Intake Vitals
+                    </div>
+                  </div>
+                  <StatusBadge label="Verified" tone="success" />
+                </div>
+                <SimpleLineChart
+                  points={bpTrendPoints}
+                  unit="mmHg"
+                  color="#0F6E50"
+                  height={118}
+                />
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -490,6 +645,42 @@ export const PatientOverviewTab: React.FC<{ patient: Patient }> = ({ patient }) 
                       </div>
                     </div>
                     <StatusBadge label={img.status} tone="blue" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Compact Clinical Timeline Preview */}
+          <section className="eigen-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-sm font-semibold text-[#042C53]">
+                Clinical Timeline ({recentTimeline.length} Recent)
+              </h2>
+              <button
+                type="button"
+                onClick={() => setPatientTab('timeline')}
+                className="text-xs font-medium text-[#185FA5] hover:underline"
+              >
+                Full Timeline
+              </button>
+            </div>
+            {recentTimeline.length === 0 ? (
+              <p className="text-[#5F5D56]">No timeline events recorded yet.</p>
+            ) : (
+              <div className="divide-y divide-[#042C53]/[0.06]">
+                {recentTimeline.map((ev) => (
+                  <div key={ev.id} className="py-2 first:pt-0 last:pb-0 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-[#042C53] flex items-center gap-1.5 flex-wrap">
+                        <span>{ev.title}</span>
+                        <StatusBadge label={ev.category} tone="neutral" />
+                      </div>
+                      <div className="text-[11px] text-[#5F5D56] truncate mt-0.5">{ev.summary}</div>
+                    </div>
+                    <span className="font-mono text-[10.5px] text-[#5F5D56] whitespace-nowrap shrink-0">
+                      {ev.date}
+                    </span>
                   </div>
                 ))}
               </div>

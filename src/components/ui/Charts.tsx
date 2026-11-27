@@ -160,7 +160,13 @@ export const SimpleLineChart: React.FC<{
             <text
               x={c.x}
               y={c.y - 9}
-              textAnchor="middle"
+              textAnchor={
+                coords.length > 1 && idx === 0
+                  ? 'start'
+                  : coords.length > 1 && idx === coords.length - 1
+                  ? 'end'
+                  : 'middle'
+              }
               fontSize="10"
               fill="#042C53"
               className="font-mono tabular-nums"

@@ -40,7 +40,7 @@ import { StatusBadge } from '../ui/Primitives';
 
 const ROLES: StaffRole[] = ALL_STAFF_ROLES;
 
-type NavGroup = 'workspace' | 'clinical' | 'operations';
+type NavGroup = 'workspace' | 'clinical' | 'operations' | 'training';
 
 const NAV_ITEMS: {
   key: StaffNavKey;
@@ -49,23 +49,24 @@ const NAV_ITEMS: {
   group: NavGroup;
 }[] = [
   { key: 'home', label: 'Home', icon: Home, group: 'workspace' },
-  { key: 'demo-scenarios', label: 'Demo Academy', icon: PlayCircle, group: 'workspace' },
-  { key: 'patients', label: 'Patients', icon: Users, group: 'clinical' },
-  { key: 'schedule', label: 'Schedule', icon: Calendar, group: 'clinical' },
+  { key: 'patients', label: 'Patient Directory', icon: Users, group: 'clinical' },
   { key: 'front-desk', label: 'Front Desk', icon: ClipboardCheck, group: 'clinical' },
-  { key: 'inbox', label: 'Inbox', icon: Inbox, group: 'clinical' },
+  { key: 'schedule', label: 'Schedule', icon: Calendar, group: 'clinical' },
   { key: 'tasks', label: 'Tasks', icon: CheckSquare, group: 'clinical' },
+  { key: 'inbox', label: 'Inbox', icon: Inbox, group: 'clinical' },
   { key: 'care-management', label: 'Care Management', icon: HeartPulse, group: 'clinical' },
   { key: 'billing', label: 'Billing', icon: CreditCard, group: 'operations' },
   { key: 'reports', label: 'Reports', icon: FileBarChart2, group: 'operations' },
   { key: 'hospital', label: 'Hospital & Specialties', icon: Activity, group: 'operations' },
   { key: 'administration', label: 'Administration', icon: Settings, group: 'operations' },
+  { key: 'demo-scenarios', label: 'Demo Academy', icon: PlayCircle, group: 'training' },
 ];
 
 const NAV_GROUP_LABELS: Record<NavGroup, string> = {
   workspace: 'Workspace',
-  clinical: 'Clinical Care',
+  clinical: 'Clinical & Intake',
   operations: 'Operations',
+  training: 'Training (Optional)',
 };
 
 function getInitials(name: string): string {
@@ -186,6 +187,7 @@ export const StaffAppShell: React.FC<{
       { id: 'workspace', label: NAV_GROUP_LABELS.workspace, items: [] },
       { id: 'clinical', label: NAV_GROUP_LABELS.clinical, items: [] },
       { id: 'operations', label: NAV_GROUP_LABELS.operations, items: [] },
+      { id: 'training', label: NAV_GROUP_LABELS.training, items: [] },
     ];
     for (const item of visibleNavItems) {
       const target = groups.find((g) => g.id === item.group);
